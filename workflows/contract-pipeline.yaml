@@ -1,0 +1,65 @@
+main:
+  params: [event]
+  steps:
+    - init:
+        assign:
+          - jobId: ${event.jobId}
+          - sourceBucket: ${event.source.bucket}
+          - sourceObject: ${event.source.object}
+          - sourceGeneration: ${event.source.generation}
+          - docaiUrl: ${sys.get_env("DOCAI_SERVICE_URL")}
+          - dlpUrl: ${sys.get_env("DLP_SERVICE_URL")}
+          - geminiUrl: ${sys.get_env("GEMINI_SERVICE_URL")}
+          - finalizeUrl: ${sys.get_env("FINALIZE_SERVICE_URL")}
+    - docAiExtract:
+        call: http.post
+        args:
+          url: ${docaiUrl}
+          auth:
+            type: OIDC
+          body:
+            jobId: ${jobId}
+            source:
+              bucket: ${sourceBucket}
+              object: ${sourceObject}
+              generation: ${sourceGeneration}
+        result: docAiResult
+    - piiRedaction:
+        call: http.post
+        args:
+          url: ${dlpUrl}
+          auth:
+            type: OIDC
+          body:
+            jobId: ${jobId}
+            extractedTextRef: ${docAiResult.body.extractedTextRef}
+        result: redactionResult
+    - geminiAnalyze:
+        call: http.post
+        args:
+          url: ${geminiUrl}
+          auth:
+            type: OIDC
+          body:
+            jobId: ${jobId}
+            redactedTextRef: ${redactionResult.body.redactedTextRef}
+            redactionApplied: true
+        result: geminiResult
+    - finalizeFile:
+        call: http.post
+        args:
+          url: ${finalizeUrl}
+          auth:
+            type: OIDC
+          body:
+            jobId: ${jobId}
+            source:
+              bucket: ${sourceBucket}
+              object: ${sourceObject}
+              generation: ${sourceGeneration}
+            analysisRef: ${geminiResult.body.resultRef}
+        result: finalizeResult
+    - done:
+        return:
+          jobId: ${jobId}
+          outputUri: ${finalizeResult.body.outputUri}

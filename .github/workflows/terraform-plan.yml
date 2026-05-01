@@ -1,0 +1,70 @@
+name: terraform-plan
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  terraform-plan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, prod]
+
+    env:
+      TF_IN_AUTOMATION: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_TERRAFORM_SA }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: Terraform fmt check
+        working-directory: infra/terraform
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        working-directory: infra/terraform/envs/${{ matrix.environment }}
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        working-directory: infra/terraform/envs/${{ matrix.environment }}
+        run: terraform validate
+
+      - name: Terraform plan
+        working-directory: infra/terraform/envs/${{ matrix.environment }}
+        run: |
+          if [ -f terraform.tfvars ]; then
+            terraform plan -input=false -no-color -out=tfplan -var-file=terraform.tfvars
+          else
+            terraform plan -input=false -no-color -out=tfplan -var-file=terraform.tfvars.example
+          fi
+
+      - name: Render plan output
+        working-directory: infra/terraform/envs/${{ matrix.environment }}
+        run: terraform show -no-color tfplan > tfplan.txt
+
+      - name: Upload Terraform plan artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ matrix.environment }}
+          path: |
+            infra/terraform/envs/${{ matrix.environment }}/tfplan
+            infra/terraform/envs/${{ matrix.environment }}/tfplan.txt

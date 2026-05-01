@@ -1,0 +1,43 @@
+name: service-ci
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff pytest
+
+      - name: Run linter (if Python services exist)
+        run: |
+          if [ -d services ]; then
+            ruff check services
+          else
+            echo "No services directory found yet."
+          fi
+
+      - name: Run tests (if present)
+        run: |
+          if [ -d tests ]; then
+            pytest -q
+          else
+            echo "No tests directory found yet."
+          fi

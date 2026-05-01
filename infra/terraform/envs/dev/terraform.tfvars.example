@@ -1,0 +1,18 @@
+project_id  = "your-dev-project-id"
+region      = "europe-west1"
+environment = "dev"
+
+docai_processor_id = "projects/PROJECT/locations/LOCATION/processors/PROCESSOR_ID"
+vertex_model       = "gemini-1.5-pro"
+
+dlp_template_ids = {
+  inspect    = "projects/PROJECT/locations/global/inspectTemplates/INSPECT_TEMPLATE_ID"
+  deidentify = "projects/PROJECT/locations/global/deidentifyTemplates/DEIDENTIFY_TEMPLATE_ID"
+}
+
+service_images = {
+  docai           = "europe-west1-docker.pkg.dev/PROJECT/repo/docai:latest"
+  pii_redaction   = "europe-west1-docker.pkg.dev/PROJECT/repo/pii-redaction:latest"
+  gemini_analysis = "europe-west1-docker.pkg.dev/PROJECT/repo/gemini-analysis:latest"
+  finalize        = "europe-west1-docker.pkg.dev/PROJECT/repo/finalize:latest"
+}
