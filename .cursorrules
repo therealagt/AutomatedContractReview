@@ -1,0 +1,20 @@
+## General Principles
+- Write clean, modular, and testable code.
+- Follow the "Principle of Least Privilege" for all GCP configurations.
+- Prefer managed services (Cloud Run, Cloud SQL) over self-managed ones.
+
+## Git & GitHub Flow
+- Use Conventional Commits (feat, fix, docs, style, refactor, test, chore).
+- Small, atomic commits are preferred.
+- Before suggesting code changes, consider how they impact the CI/CD pipeline (GitHub Actions).
+
+## GCP Specifics
+- **Security:** Never hardcode API keys or service account JSONs. Use Secret Manager or Workload Identity.
+- **Terraform:** Use remote state (GCS backend) and modularize resources.
+- **Networking:** Use VPC Service Controls where applicable and avoid public IPs for DBs.
+- **Observability:** Use Google Cloud Client Libraries for structured logging and tracing.
+
+## Tech Stack Context
+- Primary Language: [Z.B. Python/TypeScript]
+- Infrastructure: [Terraform/gcloud CLI]
+- Deployment: [Z.B. Cloud Run]
