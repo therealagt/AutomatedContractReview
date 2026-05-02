@@ -14,6 +14,13 @@ provider "google" {
   region  = var.region
 }
 
+module "apis" {
+  source = "../../modules/apis"
+
+  project_id = var.project_id
+  services   = var.enabled_apis
+}
+
 locals {
   prefix = "acr-${var.environment}"
   service_accounts = {
@@ -29,6 +36,8 @@ locals {
 module "storage" {
   source = "../../modules/storage"
 
+  depends_on = [module.apis]
+
   project_id               = var.project_id
   location                 = var.region
   raw_bucket_name          = "${local.prefix}-raw-pdf"
@@ -41,6 +50,8 @@ module "storage" {
 module "pubsub" {
   source = "../../modules/pubsub"
 
+  depends_on = [module.apis]
+
   project_id             = var.project_id
   topic_name             = "${local.prefix}-jobs"
   subscription_name      = "${local.prefix}-jobs-sub"
@@ -52,12 +63,16 @@ module "pubsub" {
 module "firestore" {
   source = "../../modules/firestore"
 
+  depends_on = [module.apis]
+
   project_id  = var.project_id
   location_id = var.region
 }
 
 module "iam" {
   source = "../../modules/iam"
+
+  depends_on = [module.apis]
 
   project_id       = var.project_id
   service_accounts = local.service_accounts
@@ -94,6 +109,8 @@ module "iam" {
 module "docai_service" {
   source = "../../modules/run_services"
 
+  depends_on = [module.apis]
+
   project_id            = var.project_id
   region                = var.region
   service_name          = "${local.prefix}-docai"
@@ -109,6 +126,8 @@ module "docai_service" {
 
 module "dlp_service" {
   source = "../../modules/run_services"
+
+  depends_on = [module.apis]
 
   project_id            = var.project_id
   region                = var.region
@@ -127,6 +146,8 @@ module "dlp_service" {
 module "gemini_service" {
   source = "../../modules/run_services"
 
+  depends_on = [module.apis]
+
   project_id            = var.project_id
   region                = var.region
   service_name          = "${local.prefix}-gemini-analysis"
@@ -143,6 +164,8 @@ module "gemini_service" {
 module "finalize_service" {
   source = "../../modules/run_services"
 
+  depends_on = [module.apis]
+
   project_id            = var.project_id
   region                = var.region
   service_name          = "${local.prefix}-finalize"
@@ -158,6 +181,8 @@ module "finalize_service" {
 
 module "workflows" {
   source = "../../modules/workflows"
+
+  depends_on = [module.apis]
 
   project_id           = var.project_id
   region               = var.region

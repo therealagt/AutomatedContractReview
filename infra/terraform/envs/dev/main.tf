@@ -14,32 +14,43 @@ provider "google" {
   region  = var.region
 }
 
+module "apis" {
+  source = "../../modules/apis"
+
+  project_id = var.project_id
+  services   = var.enabled_apis
+}
+
 locals {
   prefix = "acr-${var.environment}"
   service_accounts = {
-    ingest_fn       = "Ingest function runtime SA"
-    docai_service   = "Document AI service runtime SA"
-    dlp_service     = "PII redaction service runtime SA"
-    gemini_service  = "Gemini analysis service runtime SA"
+    ingest_fn        = "Ingest function runtime SA"
+    docai_service    = "Document AI service runtime SA"
+    dlp_service      = "PII redaction service runtime SA"
+    gemini_service   = "Gemini analysis service runtime SA"
     finalize_service = "Finalize service runtime SA"
-    workflow_sa     = "Workflow runtime SA"
+    workflow_sa      = "Workflow runtime SA"
   }
 }
 
 module "storage" {
   source = "../../modules/storage"
 
-  project_id             = var.project_id
-  location               = var.region
-  raw_bucket_name        = "${local.prefix}-raw-pdf"
-  processed_bucket_name  = "${local.prefix}-processed-pdf"
-  versioning_enabled     = true
-  lifecycle_days_raw     = 30
+  depends_on = [module.apis]
+
+  project_id               = var.project_id
+  location                 = var.region
+  raw_bucket_name          = "${local.prefix}-raw-pdf"
+  processed_bucket_name    = "${local.prefix}-processed-pdf"
+  versioning_enabled       = true
+  lifecycle_days_raw       = 30
   lifecycle_days_processed = 365
 }
 
 module "pubsub" {
   source = "../../modules/pubsub"
+
+  depends_on = [module.apis]
 
   project_id             = var.project_id
   topic_name             = "${local.prefix}-jobs"
@@ -52,12 +63,16 @@ module "pubsub" {
 module "firestore" {
   source = "../../modules/firestore"
 
+  depends_on = [module.apis]
+
   project_id  = var.project_id
   location_id = var.region
 }
 
 module "iam" {
   source = "../../modules/iam"
+
+  depends_on = [module.apis]
 
   project_id       = var.project_id
   service_accounts = local.service_accounts
@@ -94,6 +109,8 @@ module "iam" {
 module "docai_service" {
   source = "../../modules/run_services"
 
+  depends_on = [module.apis]
+
   project_id            = var.project_id
   region                = var.region
   service_name          = "${local.prefix}-docai"
@@ -107,6 +124,8 @@ module "docai_service" {
 
 module "dlp_service" {
   source = "../../modules/run_services"
+
+  depends_on = [module.apis]
 
   project_id            = var.project_id
   region                = var.region
@@ -123,6 +142,8 @@ module "dlp_service" {
 module "gemini_service" {
   source = "../../modules/run_services"
 
+  depends_on = [module.apis]
+
   project_id            = var.project_id
   region                = var.region
   service_name          = "${local.prefix}-gemini-analysis"
@@ -137,19 +158,23 @@ module "gemini_service" {
 module "finalize_service" {
   source = "../../modules/run_services"
 
+  depends_on = [module.apis]
+
   project_id            = var.project_id
   region                = var.region
   service_name          = "${local.prefix}-finalize"
   image                 = var.service_images.finalize
   service_account_email = module.iam.service_account_emails["finalize_service"]
   env_vars = {
-    PROJECT_ID        = var.project_id
-    PROCESSED_BUCKET  = module.storage.processed_bucket_name
+    PROJECT_ID       = var.project_id
+    PROCESSED_BUCKET = module.storage.processed_bucket_name
   }
 }
 
 module "workflows" {
   source = "../../modules/workflows"
+
+  depends_on = [module.apis]
 
   project_id           = var.project_id
   region               = var.region
