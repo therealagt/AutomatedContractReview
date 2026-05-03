@@ -5,6 +5,7 @@
 
 ## Git & GitHub Flow
 - Use Conventional Commits (feat, fix, docs, style, refactor, test, chore).
+- Keep Commit messages to 30 characters
 - Small, atomic commits are preferred.
 - Before suggesting code changes, consider how they impact the CI/CD pipeline (GitHub Actions).
 
