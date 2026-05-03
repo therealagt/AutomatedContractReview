@@ -1,3 +1,4 @@
+# APIs module: project id and set of service names to enable.
 variable "project_id" {
   type = string
 }

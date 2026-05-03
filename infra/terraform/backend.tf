@@ -1,6 +1,5 @@
+# Local state fallback for root layout; prefer envs/<env>/backend.tf (GCS) for real runs.
 terraform {
-  # Local backend for local-first development.
-  # Switch to GCS backend when project billing and state bucket are ready.
   backend "local" {
     path = ".terraform/terraform.tfstate"
   }

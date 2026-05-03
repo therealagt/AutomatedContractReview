@@ -1,3 +1,5 @@
+# Contract pipeline: Document AI → DLP → Gemini → finalize over HTTP (OIDC to Cloud Run).
+# Service URLs: DOCAI_SERVICE_URL, DLP_SERVICE_URL, GEMINI_SERVICE_URL, FINALIZE_SERVICE_URL.
 main:
   params: [event]
   steps:

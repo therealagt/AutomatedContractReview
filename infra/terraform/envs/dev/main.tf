@@ -1,3 +1,4 @@
+# Dev environment: shared platform (APIs, buckets, Pub/Sub, Firestore, IAM) plus Cloud Run pipeline services and Workflows.
 terraform {
   required_version = ">= 1.6.0"
 

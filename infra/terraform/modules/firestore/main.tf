@@ -1,3 +1,4 @@
+# Native Firestore database for pipeline metadata and job state.
 variable "project_id" {
   type = string
 }

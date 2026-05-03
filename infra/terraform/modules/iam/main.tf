@@ -1,3 +1,4 @@
+# Runtime service accounts and project-level IAM bindings for pipeline components.
 variable "project_id" {
   type = string
 }

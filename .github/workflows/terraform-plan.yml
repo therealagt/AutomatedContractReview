@@ -1,3 +1,4 @@
+# CI: Terraform fmt, init, validate, plan for dev/prod via Workload Identity (OIDC).
 name: terraform-plan
 
 on:

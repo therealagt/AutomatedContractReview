@@ -1,3 +1,4 @@
+# Input variables for the prod stack (tfvars supply project, region, AI/DLP ids, images).
 variable "project_id" {
   type = string
 }

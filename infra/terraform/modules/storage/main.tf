@@ -1,3 +1,4 @@
+# Raw and processed PDF buckets with versioning, uniform access, and lifecycle rules.
 variable "project_id" {
   type = string
 }

@@ -1,3 +1,4 @@
+# Alerting on workflow execution failures (optional notification channels).
 variable "project_id" {
   type = string
 }

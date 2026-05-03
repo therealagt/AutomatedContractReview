@@ -1,3 +1,4 @@
+# Deploys workflow source from disk path into Google Cloud Workflows.
 variable "project_id" {
   type = string
 }

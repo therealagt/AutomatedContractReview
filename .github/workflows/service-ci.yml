@@ -1,3 +1,4 @@
+# CI: Ruff/pytest when services/ and tests/ are present; no-op scaffolding otherwise.
 name: service-ci
 
 on:

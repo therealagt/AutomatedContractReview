@@ -1,3 +1,4 @@
+# Prod environment: same topology as dev; Cloud Run scaling defaults are higher for finalize.
 terraform {
   required_version = ">= 1.6.0"
 

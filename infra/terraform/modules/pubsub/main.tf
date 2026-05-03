@@ -1,3 +1,4 @@
+# Job topic, pull subscription, and DLQ for pipeline work items.
 variable "project_id" {
   type = string
 }

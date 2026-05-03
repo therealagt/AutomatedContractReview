@@ -1,3 +1,4 @@
+# Enables required googleapis.com services before dependent resources.
 resource "google_project_service" "enabled" {
   for_each = var.services
 

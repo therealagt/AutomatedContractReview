@@ -1,3 +1,4 @@
+# Cloud Run (v2) service template: container image, runtime SA, env map, autoscaling bounds.
 variable "project_id" {
   type = string
 }
