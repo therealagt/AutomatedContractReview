@@ -20,7 +20,7 @@ terraform init && terraform validate && terraform plan -var-file=terraform.tfvar
 
 Repeat under `envs/prod` with its `terraform.tfvars`.
 
-**State:** `dev` uses a `gcs` backend ([`envs/dev/backend.tf`](infra/terraform/envs/dev/backend.tf)); create the bucket and grant state access before `init`. `prod` has no `backend.tf` yet—add `gcs` when you want remote state. [`infra/terraform/backend.tf`](infra/terraform/backend.tf) is a local-state stub for any legacy root use; env backends are independent.
+**State:** `dev` uses `gcs` ([`envs/dev/backend.tf`](infra/terraform/envs/dev/backend.tf)). Set `terraform_state_access_members` in `terraform.tfvars` so Terraform can manage bucket IAM for that backend. `prod` has no `backend.tf` yet. [`infra/terraform/backend.tf`](infra/terraform/backend.tf) is a local-state stub for legacy root use.
 
 ## GitHub Actions
 

@@ -2,6 +2,11 @@ project_id  = "your-dev-project-id"
 region      = "europe-west1"
 environment = "dev"
 
+terraform_state_access_members = [
+  # "user:you@example.com",
+  # "serviceAccount:terraform-plan@your-dev-project-id.iam.gserviceaccount.com",
+]
+
 docai_processor_id = "projects/PROJECT/locations/LOCATION/processors/PROCESSOR_ID"
 vertex_model       = "gemini-1.5-pro"
 

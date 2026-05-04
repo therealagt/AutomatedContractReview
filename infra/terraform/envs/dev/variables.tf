@@ -58,3 +58,15 @@ variable "service_images" {
     finalize        = string
   })
 }
+
+variable "terraform_state_bucket_name" {
+  type        = string
+  description = "GCS backend bucket; must match envs/dev/backend.tf"
+  default     = "acreview-dev-tfstate"
+}
+
+variable "terraform_state_access_members" {
+  type        = list(string)
+  description = "Principals granted roles/storage.objectAdmin on the remote state bucket (humans, CI Terraform SA)."
+  default     = []
+}

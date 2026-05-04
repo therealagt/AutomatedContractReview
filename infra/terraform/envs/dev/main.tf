@@ -22,6 +22,15 @@ module "apis" {
   services   = var.enabled_apis
 }
 
+resource "google_storage_bucket_iam_member" "terraform_state_access" {
+  for_each = toset(var.terraform_state_access_members)
+  bucket   = var.terraform_state_bucket_name
+  role     = "roles/storage.objectAdmin"
+  member   = each.value
+
+  depends_on = [module.apis]
+}
+
 locals {
   prefix = "acr-${var.environment}"
   service_accounts = {
