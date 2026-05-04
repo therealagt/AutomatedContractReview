@@ -1,93 +1,31 @@
 # Automated Contract Review
 
-Event-driven legal document pipeline on GCP:
+GCP pipeline: raw PDF → Firestore metadata → Document AI → DLP redaction → Gemini → archived PDF.
 
-1. PDF uploaded to raw bucket
-2. Ingest metadata written to Firestore
-3. Text extracted with Document AI
-4. PII redacted with Cloud DLP
-5. Redacted text analyzed with Vertex AI Gemini
-6. PDF archived in processed bucket
+## Layout
 
-## Bootstrap Guide
+- Terraform: `infra/terraform/envs/{dev,prod}` (roots) and `infra/terraform/modules`
+- Event workflow: `workflows/contract-pipeline.yaml`
+- CI: `.github/workflows`
 
-This project is intentionally set up for **local-first infrastructure authoring** so you can progress before full cloud access is available.
+## Terraform
 
-### 1) Prerequisites
-
-- Terraform `>= 1.6`
-- `gcloud` CLI
-- GitHub repository with Actions enabled
-- A GCP project ID (dev/prod can be placeholders initially)
-
-### 2) Repository Layout
-
-- Infrastructure: `infra/terraform`
-- Runtime workflow: `workflows/contract-pipeline.yaml`
-- CI workflows: `.github/workflows`
-
-### 3) Local Terraform Bootstrap (No Remote State Yet)
-
-The root Terraform backend currently uses local state (`infra/terraform/backend.tf`).
+Always run commands from an env directory (not `infra/terraform` alone).
 
 ```bash
 cd infra/terraform/envs/dev
-cp terraform.tfvars.example terraform.tfvars
-# edit terraform.tfvars with your values
-terraform init
-terraform validate
-terraform plan -var-file=terraform.tfvars
+cp terraform.tfvars.example terraform.tfvars   # edit values
+terraform init && terraform validate && terraform plan -var-file=terraform.tfvars
 ```
 
-Run the same flow for prod:
+Repeat under `envs/prod` with its `terraform.tfvars`.
 
-```bash
-cd infra/terraform/envs/prod
-cp terraform.tfvars.example terraform.tfvars
-# edit terraform.tfvars with your values
-terraform init
-terraform validate
-terraform plan -var-file=terraform.tfvars
-```
+**State:** `dev` uses a `gcs` backend ([`envs/dev/backend.tf`](infra/terraform/envs/dev/backend.tf)); create the bucket and grant state access before `init`. `prod` has no `backend.tf` yet—add `gcs` when you want remote state. [`infra/terraform/backend.tf`](infra/terraform/backend.tf) is a local-state stub for any legacy root use; env backends are independent.
 
-### 4) Switch to GCS Remote State (When Ready)
+## GitHub Actions
 
-Once billing/project linkage is ready, create the state bucket(s), then change backend from local to `gcs` in `infra/terraform/backend.tf`.
+For `terraform-plan.yml`: set secrets `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_TERRAFORM_SA`. Also run `service-ci.yml` for app lint/test.
 
-Recommended pattern:
-- One state bucket per environment, or one bucket with per-env prefixes
-- Versioning enabled
-- Uniform bucket-level access enabled
-- Public access prevention enforced
+## Security
 
-Then reinitialize:
-
-```bash
-cd infra/terraform/envs/dev
-terraform init -reconfigure
-```
-
-### 5) GitHub Actions Setup
-
-Workflows:
-- `terraform-plan.yml`: runs `fmt`, `init`, `validate`, `plan` on push/PR to `main`
-- `service-ci.yml`: lint/test scaffold
-
-Configure these repository secrets for Terraform workflow:
-
-- `GCP_WORKLOAD_IDENTITY_PROVIDER`
-- `GCP_TERRAFORM_SA`
-
-### 6) First Successful Plan Checklist
-
-- `terraform fmt -check -recursive` passes
-- `terraform validate` passes for `dev` and `prod`
-- `terraform plan` generates `tfplan`
-- GitHub Action uploads plan artifact for both environments
-
-## Security Notes
-
-- No service account JSON keys in repository or GitHub secrets
-- Use GitHub OIDC + Workload Identity Federation
-- Gemini analysis only receives redacted text output
-- Raw extracted text is treated as sensitive and should be short-retention
+No SA JSON keys in repo or secrets; use OIDC + Workload Identity Federation. Treat raw extracted text as sensitive (short retention); Gemini only sees redacted output.
