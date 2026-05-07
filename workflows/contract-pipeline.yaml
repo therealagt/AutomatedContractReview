@@ -1,30 +1,42 @@
-# Contract pipeline: Document AI → DLP → Gemini → finalize over HTTP (OIDC to Cloud Run).
-# Service URLs: DOCAI_SERVICE_URL, DLP_SERVICE_URL, GEMINI_SERVICE_URL, FINALIZE_SERVICE_URL.
+# Contract pipeline: DocAI batch (LRO) -> DLP -> Gemini (sync or batch) -> finalize.
+# Service URLs and processor name come from user_env_vars set on the workflow.
 main:
   params: [event]
   steps:
-    - init:
+    - extractInput:
         assign:
           - jobId: ${event.jobId}
           - sourceBucket: ${event.source.bucket}
           - sourceObject: ${event.source.object}
-          - sourceGeneration: ${event.source.generation}
+          - sourceGeneration: ${default(map.get(event.source, "generation"), "")}
+    - init:
+        assign:
+          - projectId: ${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
           - docaiUrl: ${sys.get_env("DOCAI_SERVICE_URL")}
           - dlpUrl: ${sys.get_env("DLP_SERVICE_URL")}
           - geminiUrl: ${sys.get_env("GEMINI_SERVICE_URL")}
           - finalizeUrl: ${sys.get_env("FINALIZE_SERVICE_URL")}
-    - docAiExtract:
-        call: http.post
+          - docaiProcessorName: ${sys.get_env("DOCAI_PROCESSOR_NAME")}
+          - processedBucket: ${sys.get_env("PROCESSED_BUCKET")}
+          - geminiBatchThreshold: ${int(default(sys.get_env("GEMINI_BATCH_CHAR_THRESHOLD"), "200000"))}
+    - docAiBatchStart:
+        call: googleapis.documentai.v1.projects.locations.processors.batchProcess
         args:
-          url: ${docaiUrl}
-          auth:
-            type: OIDC
+          name: ${docaiProcessorName}
           body:
-            jobId: ${jobId}
-            source:
-              bucket: ${sourceBucket}
-              object: ${sourceObject}
-              generation: ${sourceGeneration}
+            inputDocuments:
+              gcsDocuments:
+                documents:
+                  - gcsUri: ${"gs://" + sourceBucket + "/" + sourceObject}
+                    mimeType: "application/pdf"
+            documentOutputConfig:
+              gcsOutputConfig:
+                gcsUri: ${"gs://" + processedBucket + "/extracted/" + jobId + "/"}
+        result: docAiOp
+    - docAiPoll:
+        call: docaiAwait
+        args:
+          operationName: ${docAiOp.name}
         result: docAiResult
     - piiRedaction:
         call: http.post
@@ -34,18 +46,42 @@ main:
             type: OIDC
           body:
             jobId: ${jobId}
-            extractedTextRef: ${docAiResult.body.extractedTextRef}
+            extractedTextRef: ${docAiResult.extractedTextRef}
         result: redactionResult
-    - geminiAnalyze:
+    - decideGeminiPath:
+        switch:
+          - condition: ${redactionResult.body.redactedTextLength >= geminiBatchThreshold}
+            next: geminiBatchAnalyze
+        next: geminiSyncAnalyze
+    - geminiSyncAnalyze:
         call: http.post
         args:
-          url: ${geminiUrl}
+          url: ${geminiUrl + "/analyze"}
           auth:
             type: OIDC
           body:
             jobId: ${jobId}
             redactedTextRef: ${redactionResult.body.redactedTextRef}
             redactionApplied: true
+            mode: "sync"
+        result: geminiResult
+        next: finalizeFile
+    - geminiBatchAnalyze:
+        call: http.post
+        args:
+          url: ${geminiUrl + "/analyze"}
+          auth:
+            type: OIDC
+          body:
+            jobId: ${jobId}
+            redactedTextRef: ${redactionResult.body.redactedTextRef}
+            redactionApplied: true
+            mode: "batch"
+        result: geminiBatchStart
+    - geminiBatchPoll:
+        call: vertexBatchAwait
+        args:
+          operationName: ${geminiBatchStart.body.operationName}
         result: geminiResult
     - finalizeFile:
         call: http.post
@@ -59,9 +95,54 @@ main:
               bucket: ${sourceBucket}
               object: ${sourceObject}
               generation: ${sourceGeneration}
-            analysisRef: ${geminiResult.body.resultRef}
+            analysisRef: ${default(map.get(geminiResult, "body"), geminiResult).resultRef}
         result: finalizeResult
     - done:
         return:
           jobId: ${jobId}
           outputUri: ${finalizeResult.body.outputUri}
+
+docaiAwait:
+  params: [operationName]
+  steps:
+    - poll:
+        call: googleapis.documentai.v1.projects.locations.operations.get
+        args:
+          name: ${operationName}
+        result: op
+    - check:
+        switch:
+          - condition: ${default(map.get(op, "done"), false)}
+            next: extractRef
+        next: wait
+    - wait:
+        call: sys.sleep
+        args:
+          seconds: 5
+        next: poll
+    - extractRef:
+        return:
+          extractedTextRef: ${op.metadata.individualProcessStatuses[0].outputGcsDestination}
+
+vertexBatchAwait:
+  params: [operationName]
+  steps:
+    - poll:
+        call: googleapis.aiplatform.v1.projects.locations.operations.get
+        args:
+          name: ${operationName}
+        result: op
+    - check:
+        switch:
+          - condition: ${default(map.get(op, "done"), false)}
+            next: extractRef
+        next: wait
+    - wait:
+        call: sys.sleep
+        args:
+          seconds: 10
+        next: poll
+    - extractRef:
+        return:
+          body:
+            resultRef: ${op.response.outputInfo.gcsOutputDirectory}
