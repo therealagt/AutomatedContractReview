@@ -1,0 +1,74 @@
+# Build and push Cloud Run service images to Artifact Registry on main branch pushes.
+# Image-pulling Cloud Run services are referenced from Terraform with :latest, so this push must
+# precede a `terraform apply` that updates revisions.
+name: service-build
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "services/**"
+      - ".github/workflows/service-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - dispatcher
+          - docai
+          - pii-redaction
+          - gemini-analysis
+          - finalize
+
+    env:
+      REGION: europe-west1
+      REPO: acr
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Skip if service directory missing
+        id: check
+        run: |
+          if [ -d "services/${{ matrix.service }}" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Service services/${{ matrix.service }} not present yet, skipping."
+          fi
+
+      - name: Authenticate to Google Cloud
+        if: steps.check.outputs.exists == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_BUILD_SA }}
+
+      - name: Configure docker for Artifact Registry
+        if: steps.check.outputs.exists == 'true'
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Set up docker buildx
+        if: steps.check.outputs.exists == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        if: steps.check.outputs.exists == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: services/${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REPO }}/${{ matrix.service }}:latest
+            ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REPO }}/${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
