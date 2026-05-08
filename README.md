@@ -7,6 +7,7 @@ GCP pipeline: raw PDF → Firestore metadata → Document AI → DLP redaction �
 - Terraform: `infra/terraform/envs/{dev,prod}` (roots) and `infra/terraform/modules`
 - Pipeline workflow: `workflows/contract-pipeline.yaml`
 - Service code: `services/{ingest_fn,dispatcher,docai,pii-redaction,gemini-analysis,finalize}` (Phase 2 stubs land here)
+- Shared payload/status contract: `services/contracts`
 - CI: `.github/workflows`
 
 ## Pipeline
@@ -17,7 +18,7 @@ raw GCS finalize -> ingest_fn (Cloud Function gen2)
                   -> Pub/Sub jobs topic (7d retention buffer)
                   -> dispatcher Cloud Run (max=5, concurrency=1)
                   -> Cloud Workflows execution
-                       DocAI batchProcess (LRO + poll)
+                       docai service (/extract -> docai_done + extractedTextRef)
                        DLP de-identify
                        Gemini sync OR Vertex Batch Prediction (LRO + poll)
                        finalize (move to processed bucket)

@@ -12,6 +12,7 @@ import (
 
 	executions "cloud.google.com/go/workflows/executions/apiv1"
 	executionspb "cloud.google.com/go/workflows/executions/apiv1/executionspb"
+	"github.com/therealagt/automatedcontractreview/services/contracts"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -100,19 +101,13 @@ func dispatchHandler(client *executions.Client, workflowID string) http.HandlerF
 			return
 		}
 
-		var payload map[string]any
-		if err := json.Unmarshal(decoded, &payload); err != nil {
+		msg, err := contracts.ParseJobMessage(decoded)
+		if err != nil {
 			http.Error(w, "bad payload", http.StatusBadRequest)
 			return
 		}
 
-		jobID, _ := payload["jobId"].(string)
-		if jobID == "" {
-			http.Error(w, "missing jobId", http.StatusBadRequest)
-			return
-		}
-
-		argument, err := json.Marshal(payload)
+		argument, err := json.Marshal(msg)
 		if err != nil {
 			http.Error(w, "invalid payload", http.StatusBadRequest)
 			return
@@ -130,20 +125,20 @@ func dispatchHandler(client *executions.Client, workflowID string) http.HandlerF
 		if err != nil {
 			st, ok := status.FromError(err)
 			if ok && st.Code() == codes.ResourceExhausted {
-				slog.Warn("workflows quota hit, client should retry", "jobId", jobID, "error", err.Error())
+				slog.Warn("workflows quota hit, client should retry", "jobId", msg.JobID, "error", err.Error())
 				http.Error(w, "workflows quota", http.StatusTooManyRequests)
 				return
 			}
 
-			slog.Error("workflow start failed", "jobId", jobID, "error", err.Error())
+			slog.Error("workflow start failed", "jobId", msg.JobID, "error", err.Error())
 			http.Error(w, "workflow start failed", http.StatusServiceUnavailable)
 			return
 		}
 
 		execName := resp.GetName()
-		slog.Info("workflow execution started", "jobId", jobID, "executionName", execName)
+		slog.Info("workflow execution started", "jobId", msg.JobID, "executionName", execName)
 		writeJSON(w, http.StatusAccepted, map[string]string{
-			"jobId":         jobID,
+			"jobId":         msg.JobID,
 			"executionName": execName,
 		})
 	}

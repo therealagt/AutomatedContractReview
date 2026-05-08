@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	cloud.google.com/go/workflows v1.14.3
+	github.com/therealagt/automatedcontractreview/services/contracts v0.0.0
 	google.golang.org/grpc v1.76.0
 )
 
@@ -33,3 +34,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250811230008-5f3141c8851a // indirect
 	google.golang.org/protobuf v1.36.7 // indirect
 )
+
+replace github.com/therealagt/automatedcontractreview/services/contracts => ../contracts
