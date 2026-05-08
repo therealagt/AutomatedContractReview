@@ -3,7 +3,7 @@ package function
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -27,7 +27,22 @@ var (
 )
 
 func init() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			switch a.Key {
+			case slog.MessageKey:
+				a.Key = "message"
+			case slog.LevelKey:
+				a.Key = "severity"
+			}
+			return a
+		},
+	})))
 	functions.CloudEvent("Ingest", Ingest)
+}
+
+func isPDFObject(name string) bool {
+	return strings.HasSuffix(strings.ToLower(name), ".pdf")
 }
 
 func Ingest(ctx context.Context, e event.Event) error {
@@ -41,14 +56,14 @@ func Ingest(ctx context.Context, e event.Event) error {
 		Generation string `json:"generation"`
 	}
 	if err := e.DataAs(&data); err != nil {
-		log.Printf("decode event data failed: %v", err)
+		slog.WarnContext(ctx, "decode event data failed", "error", err.Error())
 		return nil
 	}
 
 	if data.Bucket == "" || data.Name == "" {
 		return nil
 	}
-	if !strings.HasSuffix(strings.ToLower(data.Name), ".pdf") {
+	if !isPDFObject(data.Name) {
 		return nil
 	}
 
@@ -89,6 +104,11 @@ func Ingest(ctx context.Context, e event.Event) error {
 		return err
 	}
 
+	slog.InfoContext(ctx, "ingest job published",
+		"jobId", jobID,
+		"bucket", data.Bucket,
+		"object", data.Name,
+	)
 	return nil
 }
 

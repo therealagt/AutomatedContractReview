@@ -1,6 +1,6 @@
 module github.com/therealagt/automatedcontractreview/services/dispatcher
 
-go 1.24.0
+go 1.25.0
 
 require (
 	cloud.google.com/go/workflows v1.14.3

@@ -40,7 +40,7 @@ variable "source_bucket_name" {
 
 variable "runtime" {
   type    = string
-  default = "go122"
+  default = "go125"
 }
 
 variable "entry_point" {

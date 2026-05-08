@@ -102,7 +102,10 @@ module "iam" {
     workflow_sa = [
       "roles/workflows.invoker",
       "roles/run.invoker",
-      "roles/datastore.user"
+      "roles/datastore.user",
+      "roles/documentai.apiUser",
+      "roles/aiplatform.user",
+      "roles/iam.serviceAccountTokenCreator",
     ]
   }
 }
@@ -183,10 +186,21 @@ module "finalize_service" {
 module "workflows" {
   source = "../../modules/workflows"
 
-  depends_on = [module.apis]
+  depends_on = [module.apis, module.docai_service, module.dlp_service, module.gemini_service, module.finalize_service]
 
-  project_id           = var.project_id
-  region               = var.region
-  workflow_name        = "${local.prefix}-contract-pipeline"
-  workflow_source_path = "../../../workflows/contract-pipeline.yaml"
+  project_id            = var.project_id
+  region                = var.region
+  workflow_name         = "${local.prefix}-contract-pipeline"
+  workflow_source_path  = "${path.root}/../../../../workflows/contract-pipeline.yaml"
+  service_account_email = module.iam.service_account_emails["workflow_sa"]
+  user_env_vars = {
+    GOOGLE_CLOUD_PROJECT_ID     = var.project_id
+    DOCAI_SERVICE_URL           = module.docai_service.service_url
+    DLP_SERVICE_URL             = module.dlp_service.service_url
+    GEMINI_SERVICE_URL          = module.gemini_service.service_url
+    FINALIZE_SERVICE_URL        = module.finalize_service.service_url
+    DOCAI_PROCESSOR_NAME        = var.docai_processor_id
+    PROCESSED_BUCKET            = module.storage.processed_bucket_name
+    GEMINI_BATCH_CHAR_THRESHOLD = "200000"
+  }
 }

@@ -323,6 +323,17 @@ module "dispatcher" {
   max_instances         = var.dispatcher_max_instances
 }
 
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  depends_on = [module.apis, module.workflows, module.pubsub]
+
+  project_id               = var.project_id
+  workflow_id              = module.workflows.workflow_id
+  pubsub_subscription_id   = module.pubsub.subscription_id
+  notification_channel_ids = var.monitoring_notification_channel_ids
+}
+
 # Pub/Sub service agent must mint OIDC tokens for Eventarc push to Cloud Run.
 resource "google_service_account_iam_member" "pubsub_token_creator" {
   service_account_id = "projects/${var.project_id}/serviceAccounts/${module.iam.service_account_emails["dispatcher"]}"

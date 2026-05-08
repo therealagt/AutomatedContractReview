@@ -1,0 +1,8 @@
+# Copy to backend.tf after creating a dedicated GCS bucket for Terraform state.
+# Example: gsutil mb -p PROJECT_ID -l REGION gs://acreview-prod-tfstate
+terraform {
+  backend "gcs" {
+    bucket = "acreview-prod-tfstate"
+    prefix = "terraform/prod"
+  }
+}

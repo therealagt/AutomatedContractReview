@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -23,16 +23,30 @@ type pubsubEnvelope struct {
 }
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			switch a.Key {
+			case slog.MessageKey:
+				a.Key = "message"
+			case slog.LevelKey:
+				a.Key = "severity"
+			}
+			return a
+		},
+	})))
+
 	projectID := os.Getenv("PROJECT_ID")
 	workflowID := os.Getenv("WORKFLOW_ID")
 	if projectID == "" || workflowID == "" {
-		log.Fatal("missing required env vars PROJECT_ID or WORKFLOW_ID")
+		slog.Error("missing required env vars PROJECT_ID or WORKFLOW_ID")
+		os.Exit(1)
 	}
 
 	ctx := context.Background()
 	client, err := executions.NewClient(ctx)
 	if err != nil {
-		log.Fatalf("create executions client: %v", err)
+		slog.Error("create executions client", "error", err)
+		os.Exit(1)
 	}
 	defer client.Close()
 
@@ -51,9 +65,10 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	log.Printf("dispatcher listening on :%s", port)
+	slog.Info("dispatcher listening", "port", port)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatalf("server failed: %v", err)
+		slog.Error("server failed", "error", err)
+		os.Exit(1)
 	}
 }
 
@@ -115,20 +130,21 @@ func dispatchHandler(client *executions.Client, workflowID string) http.HandlerF
 		if err != nil {
 			st, ok := status.FromError(err)
 			if ok && st.Code() == codes.ResourceExhausted {
-				log.Printf("workflows quota hit, will retry: %v", err)
+				slog.Warn("workflows quota hit, client should retry", "jobId", jobID, "error", err.Error())
 				http.Error(w, "workflows quota", http.StatusTooManyRequests)
 				return
 			}
 
-			log.Printf("workflow start failed: %v", err)
+			slog.Error("workflow start failed", "jobId", jobID, "error", err.Error())
 			http.Error(w, "workflow start failed", http.StatusServiceUnavailable)
 			return
 		}
 
-		log.Printf("started workflow execution %s for job %s", resp.GetName(), jobID)
+		execName := resp.GetName()
+		slog.Info("workflow execution started", "jobId", jobID, "executionName", execName)
 		writeJSON(w, http.StatusAccepted, map[string]string{
 			"jobId":         jobID,
-			"executionName": resp.GetName(),
+			"executionName": execName,
 		})
 	}
 }
@@ -137,6 +153,6 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("encode response: %v", err)
+		slog.Error("encode response", "error", err)
 	}
 }

@@ -39,7 +39,7 @@ This system processes legal PDFs and must enforce privacy controls before any LL
 - All resources provisioned from `infra/terraform`.
 - Reusable modules for storage, pubsub, firestore, iam, run services, workflows, monitoring, artifact_registry, docai, dlp, ingest_function, dispatcher_service.
 - Document AI processor and DLP templates are Terraform-managed; no manual IDs in tfvars.
-- GCS backend used for dev (`envs/dev/backend.tf`); prod backend pending.
+- GCS remote state: dev uses [`envs/dev/backend.tf`](infra/terraform/envs/dev/backend.tf). For prod, create a state bucket, copy [`envs/prod/backend.tf.example`](infra/terraform/envs/prod/backend.tf.example) to `backend.tf`, then `terraform init -migrate-state` as needed.
 
 ### 6) Least Privilege IAM
 
@@ -53,7 +53,7 @@ This system processes legal PDFs and must enforce privacy controls before any LL
 - GitHub Actions runs Terraform checks/plans on push/PR to `main`.
 - `service-build.yml` builds and pushes Cloud Run images to Artifact Registry on changes under `services/**`.
 - Plan artifacts are retained for review/audit.
-- Branch protections should require Terraform plan job success.
+- On the default branch, require the `terraform-plan` and `service-ci` workflow checks to pass before merge. `service-build` runs on pushes to `main` when `services/**` changes (image deploy prerequisite).
 
 ## Data Flow
 
@@ -102,8 +102,21 @@ flowchart LR
     end
 ```
 
+## Observability
+
+- Ingest and dispatcher emit **JSON logs** to stdout (`severity`, `message`, and correlating fields `jobId`, `executionName` on the dispatcher success path).
+- Dev Terraform wires [`modules/monitoring`](infra/terraform/modules/monitoring): alerts on workflow **finished** executions with `FAILED` status and on Pub/Sub **dead-letter** message count for the jobs subscription. Optional notification channels: set `monitoring_notification_channel_ids` in dev tfvars.
+
+## Integrator contract (API without UI)
+
+- **Trigger:** Upload a PDF to the configured **raw** GCS bucket (object name must end in `.pdf`). Nothing in this repo exposes an HTTP upload API; any client or signed URL flow that lands files in that bucket is valid.
+- **Correlation:** The ingest function creates `contractJobs/{jobId}` and publishes `jobId` plus `source` to Pub/Sub. There is **no** response body on the upload path with the job id; discover the job by listing/querying Firestore `contractJobs` (for example by `createdAt` or by matching `source.bucket` / `source.object`) or by following **structured logs** (`jobId` after publish, `executionName` after dispatch).
+- **Initial Firestore fields** (ingest): `jobId`, `status` (`queued`), `createdAt` (RFC3339 nano UTC), `source` (`bucket`, `object`, optional `generation`). Later stages add pipeline-specific fields as services update the document.
+- **Lifecycle:** `queued` → pipeline stages update the same document and object locations in GCS/Firestore until finalize marks completion (see Data Flow above). Polling Firestore by `jobId` is the supported integration pattern.
+- **Not supported:** A single synchronous HTTP request that blocks until DocAI, DLP, and Gemini complete. Bursts are absorbed by Pub/Sub; long work uses LRO and batch paths inside Cloud Workflows.
+
 ## Non-Goals (Current Iteration)
 
 - No direct end-user UI in this repository yet.
-- No synchronous request/response processing path.
+- No synchronous request/response processing path for the full pipeline.
 - No custom model fine-tuning pipeline.

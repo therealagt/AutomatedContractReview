@@ -81,6 +81,12 @@ variable "docai_timeout_seconds" {
   default = 1800
 }
 
+variable "monitoring_notification_channel_ids" {
+  type        = list(string)
+  default     = []
+  description = "Optional Cloud Monitoring notification channel ids for alert policies."
+}
+
 variable "dispatcher_max_instances" {
   type        = number
   default     = 5
