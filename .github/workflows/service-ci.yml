@@ -1,4 +1,4 @@
-# CI: Ruff/pytest when services/ and tests/ are present; no-op scaffolding otherwise.
+# CI: Go formatting, vet, and tests when service modules are present.
 name: service-ci
 
 on:
@@ -17,28 +17,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          python-version: "3.11"
+          go-version: "1.22.x"
 
-      - name: Install tooling
+      - name: Run gofmt check
         run: |
-          python -m pip install --upgrade pip
-          pip install ruff pytest
-
-      - name: Run linter (if Python services exist)
-        run: |
-          if [ -d services ]; then
-            ruff check services
+          FILES=$(find services -name '*.go' -type f)
+          if [ -n "$FILES" ]; then
+            test -z "$(gofmt -l $FILES)"
           else
-            echo "No services directory found yet."
+            echo "No Go files found."
           fi
 
-      - name: Run tests (if present)
+      - name: Run go vet and tests
         run: |
-          if [ -d tests ]; then
-            pytest -q
-          else
-            echo "No tests directory found yet."
-          fi
+          set -e
+          for MOD in services/*; do
+            if [ -f "$MOD/go.mod" ]; then
+              (cd "$MOD" && go mod tidy && go vet ./... && go test ./...)
+            fi
+          done

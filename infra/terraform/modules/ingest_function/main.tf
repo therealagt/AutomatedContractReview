@@ -40,12 +40,12 @@ variable "source_bucket_name" {
 
 variable "runtime" {
   type    = string
-  default = "python311"
+  default = "go122"
 }
 
 variable "entry_point" {
   type    = string
-  default = "ingest"
+  default = "Ingest"
 }
 
 variable "memory" {
@@ -82,7 +82,7 @@ data "archive_file" "source" {
   type        = "zip"
   source_dir  = var.source_dir
   output_path = "${path.module}/.build/${var.function_name}.zip"
-  excludes    = ["__pycache__", ".pytest_cache", "*.pyc"]
+  excludes    = [".git", ".gitignore", ".DS_Store"]
 }
 
 resource "google_storage_bucket_object" "source" {

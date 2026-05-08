@@ -12,6 +12,8 @@ Triggered by `google.cloud.storage.object.v1.finalized` on the raw PDF bucket. C
 ## Local
 
 ```bash
-pip install -r requirements.txt
-functions-framework --target=ingest --signature-type=cloudevent
+go mod tidy
+go run github.com/GoogleCloudPlatform/functions-framework-go/funcframework \
+  --target=Ingest \
+  --signature-type=cloudevent
 ```

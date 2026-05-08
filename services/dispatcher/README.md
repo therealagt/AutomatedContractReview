@@ -13,3 +13,10 @@ On `ResourceExhausted` the service returns 429, so Pub/Sub re-delivers with retr
 
 - `PROJECT_ID`
 - `WORKFLOW_ID` - full resource name `projects/<id>/locations/<region>/workflows/<name>`
+
+## Local
+
+```bash
+go mod tidy
+PORT=8080 PROJECT_ID=your-project WORKFLOW_ID=projects/your-project/locations/europe-west1/workflows/your-workflow go run ./main.go
+```
