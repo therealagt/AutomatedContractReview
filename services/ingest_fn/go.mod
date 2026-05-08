@@ -8,6 +8,7 @@ require (
 	github.com/GoogleCloudPlatform/functions-framework-go v1.9.2
 	github.com/cloudevents/sdk-go/v2 v2.16.2
 	github.com/google/uuid v1.6.0
+	github.com/therealagt/automatedcontractreview/services/contracts v0.0.0
 )
 
 require (
@@ -51,3 +52,5 @@ require (
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
+
+replace github.com/therealagt/automatedcontractreview/services/contracts => ../contracts

@@ -12,6 +12,7 @@ import (
 	"cloud.google.com/go/firestore"
 	"cloud.google.com/go/pubsub"
 	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
+	"github.com/therealagt/automatedcontractreview/services/contracts"
 	"github.com/cloudevents/sdk-go/v2/event"
 	"github.com/google/uuid"
 )
@@ -69,29 +70,15 @@ func Ingest(ctx context.Context, e event.Event) error {
 
 	jobID := uuid.NewString()
 	now := time.Now().UTC().Format(time.RFC3339Nano)
+	source := contracts.NewSource(data.Bucket, data.Name, data.Generation)
+	record := contracts.NewQueuedJobRecord(jobID, now, source)
 
-	_, err := firestoreCli.Collection("contractJobs").Doc(jobID).Set(ctx, map[string]any{
-		"jobId":     jobID,
-		"status":    "queued",
-		"createdAt": now,
-		"source": map[string]any{
-			"bucket":     data.Bucket,
-			"object":     data.Name,
-			"generation": data.Generation,
-		},
-	})
+	_, err := firestoreCli.Collection("contractJobs").Doc(jobID).Set(ctx, record)
 	if err != nil {
 		return err
 	}
 
-	payload, err := json.Marshal(map[string]any{
-		"jobId": jobID,
-		"source": map[string]any{
-			"bucket":     data.Bucket,
-			"object":     data.Name,
-			"generation": data.Generation,
-		},
-	})
+	payload, err := json.Marshal(contracts.NewQueuedJobMessage(jobID, source))
 	if err != nil {
 		return err
 	}

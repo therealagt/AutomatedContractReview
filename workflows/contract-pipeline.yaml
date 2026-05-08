@@ -16,27 +16,14 @@ main:
           - dlpUrl: ${sys.get_env("DLP_SERVICE_URL")}
           - geminiUrl: ${sys.get_env("GEMINI_SERVICE_URL")}
           - finalizeUrl: ${sys.get_env("FINALIZE_SERVICE_URL")}
-          - docaiProcessorName: ${sys.get_env("DOCAI_PROCESSOR_NAME")}
-          - processedBucket: ${sys.get_env("PROCESSED_BUCKET")}
           - geminiBatchThreshold: ${int(default(sys.get_env("GEMINI_BATCH_CHAR_THRESHOLD"), "200000"))}
-    - docAiBatchStart:
-        call: googleapis.documentai.v1.projects.locations.processors.batchProcess
+    - docAiExtract:
+        call: http.post
         args:
-          name: ${docaiProcessorName}
-          body:
-            inputDocuments:
-              gcsDocuments:
-                documents:
-                  - gcsUri: ${"gs://" + sourceBucket + "/" + sourceObject}
-                    mimeType: "application/pdf"
-            documentOutputConfig:
-              gcsOutputConfig:
-                gcsUri: ${"gs://" + processedBucket + "/extracted/" + jobId + "/"}
-        result: docAiOp
-    - docAiPoll:
-        call: docaiAwait
-        args:
-          operationName: ${docAiOp.name}
+          url: ${docaiUrl + "/extract"}
+          auth:
+            type: OIDC
+          body: ${event}
         result: docAiResult
     - piiRedaction:
         call: http.post
@@ -101,28 +88,6 @@ main:
         return:
           jobId: ${jobId}
           outputUri: ${finalizeResult.body.outputUri}
-
-docaiAwait:
-  params: [operationName]
-  steps:
-    - poll:
-        call: googleapis.documentai.v1.projects.locations.operations.get
-        args:
-          name: ${operationName}
-        result: op
-    - check:
-        switch:
-          - condition: ${default(map.get(op, "done"), false)}
-            next: extractRef
-        next: wait
-    - wait:
-        call: sys.sleep
-        args:
-          seconds: 5
-        next: poll
-    - extractRef:
-        return:
-          extractedTextRef: ${op.metadata.individualProcessStatuses[0].outputGcsDestination}
 
 vertexBatchAwait:
   params: [operationName]

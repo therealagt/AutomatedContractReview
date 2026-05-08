@@ -1,0 +1,123 @@
+name: Go Conformance CI
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Declare default permissions as read only.
+permissions: read-all
+
+jobs:
+  # Download the Go conformance client binary in it's own Github runner so that the version of Go used doesn't matter
+  download-conformance-client:
+    runs-on: ubuntu-latest
+    outputs:
+      cache-key: ${{ steps.resolve-latest-client.outputs.version }}
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+      with:
+        egress-policy: block
+        allowed-endpoints: >
+          api.github.com:443
+          proxy.golang.org:443
+          sum.golang.org:443
+          storage.googleapis.com:443
+
+    - name: Resolve latest client version
+      id: resolve-latest-client
+      uses: GoogleCloudPlatform/functions-framework-conformance/.github/actions/client/resolve-latest@72a4f36b10f1c6435ab1a86a9ea24bda464cc262 # v1.8.6
+    # Check if it's already in the cache
+    - name: Cache client
+      id: check-for-cached-client
+      uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+      with:
+        path: ~/go/bin/client
+        key: ${{ steps.resolve-latest-client.outputs.version }}
+    - name: Install and cache client
+      if: ${{ steps.check-for-cached-client.outputs.cache-hit != 'true' }}
+      uses: GoogleCloudPlatform/functions-framework-conformance/.github/actions/client/install@72a4f36b10f1c6435ab1a86a9ea24bda464cc262 # v1.8.6
+      with:
+        cache-path: ~/go/bin/client
+        cache-key: ${{ steps.resolve-latest-client.outputs.version }}
+  build:
+    needs:
+    - download-conformance-client
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.18', '1.20']
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - name: Check out code
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+    - name: Set up Go ${{ matrix.go-version }}
+      uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
+      with:
+        go-version: '${{ matrix.go-version }}'
+    - name: Pre-fetch go dependencies and build
+      run: 'go build ./...'
+    - name: Fetch conformance client
+      uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+      with:
+        path: ~/go/bin/client
+        key: ${{ needs.download-conformance-client.outputs.cache-key }}
+    - name: Run HTTP conformance tests
+      run: |
+        client \
+            -type=http \
+            -buildpacks=false \
+            -start-delay=5 \
+            -cmd="go run testdata/conformance/cmd/http/main.go"
+    - name: Run event conformance tests
+      run: |
+        client \
+          -type=legacyevent \
+          -buildpacks=false \
+          -start-delay=5 \
+          -cmd="go run testdata/conformance/cmd/legacyevent/main.go"
+    - name: Run CloudEvent conformance tests
+      run: |
+          client \
+            -type=cloudevent \
+            -buildpacks=false \
+            -start-delay=5 \
+            -cmd="go run testdata/conformance/cmd/cloudevent/main.go"
+    - name: Run HTTP conformance tests using declarative API
+      run: |
+          FUNCTION_TARGET=declarativeHTTP client \
+            -type=http \
+            -buildpacks=false \
+            -start-delay=5 \
+            -cmd="go run testdata/conformance/cmd/declarative/main.go"
+    - name: Run Typed conformance tests using declarative API
+      run: |
+          FUNCTION_TARGET=declarativeTyped client \
+            -type=http \
+            -declarative-type=typed \
+            -buildpacks=false \
+            -start-delay=5 \
+            -cmd="go run testdata/conformance/cmd/declarative/main.go"
+    - name: Run CloudEvent conformance tests using declarative API
+      run: |
+          FUNCTION_TARGET=declarativeCloudEvent client \
+            -type=cloudevent \
+            -buildpacks=false \
+            -start-delay=5 \
+            -cmd="go run testdata/conformance/cmd/declarative/main.go"
+    - name: Run HTTP concurrency conformance tests
+      run: |
+          FUNCTION_TARGET=concurrentHTTP client \
+            -type=http \
+            -buildpacks=false \
+            -start-delay=5 \
+            -cmd="go run testdata/conformance/cmd/declarative/main.go" \
+            -validate-concurrency=true
