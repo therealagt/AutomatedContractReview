@@ -4,18 +4,28 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
+	documentai "cloud.google.com/go/documentai/apiv1"
+	"cloud.google.com/go/documentai/apiv1/documentaipb"
 	"cloud.google.com/go/firestore"
+	"cloud.google.com/go/storage"
 	"github.com/therealagt/automatedcontractreview/services/contracts"
+	"google.golang.org/api/option"
 )
 
 type app struct {
 	firestore       *firestore.Client
+	storage         *storage.Client
+	docai           *documentai.DocumentProcessorClient
+	processorName   string
 	processedBucket string
+	handlerTimeout  time.Duration
 }
 
 func main() {
@@ -32,26 +42,51 @@ func main() {
 	})))
 
 	projectID := os.Getenv("PROJECT_ID")
-	if projectID == "" {
-		slog.Error("missing required env var PROJECT_ID")
-		os.Exit(1)
-	}
+	processorName := os.Getenv("DOCAI_PROCESSOR_NAME")
+	docaiLocation := os.Getenv("DOCAI_LOCATION")
 	processedBucket := os.Getenv("PROCESSED_BUCKET")
-	if processedBucket == "" {
-		slog.Error("missing required env var PROCESSED_BUCKET")
+	if projectID == "" || processorName == "" || docaiLocation == "" || processedBucket == "" {
+		slog.Error("missing required env vars PROJECT_ID, DOCAI_PROCESSOR_NAME, DOCAI_LOCATION, or PROCESSED_BUCKET")
 		os.Exit(1)
 	}
 
-	firestoreCli, err := firestore.NewClient(context.Background(), projectID)
+	handlerTimeout := 1700 * time.Second
+	if v := os.Getenv("HANDLER_TIMEOUT_SECONDS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			handlerTimeout = time.Duration(n) * time.Second
+		}
+	}
+
+	ctx := context.Background()
+	firestoreCli, err := firestore.NewClient(ctx, projectID)
 	if err != nil {
 		slog.Error("create firestore client", "error", err)
 		os.Exit(1)
 	}
 	defer firestoreCli.Close()
 
+	stCli, err := storage.NewClient(ctx)
+	if err != nil {
+		slog.Error("create storage client", "error", err)
+		os.Exit(1)
+	}
+	defer stCli.Close()
+
+	endpoint := fmt.Sprintf("%s-documentai.googleapis.com:443", docaiLocation)
+	docaiCli, err := documentai.NewDocumentProcessorClient(ctx, option.WithEndpoint(endpoint))
+	if err != nil {
+		slog.Error("create documentai client", "error", err)
+		os.Exit(1)
+	}
+	defer docaiCli.Close()
+
 	application := &app{
 		firestore:       firestoreCli,
+		storage:         stCli,
+		docai:           docaiCli,
+		processorName:   processorName,
 		processedBucket: processedBucket,
+		handlerTimeout:  handlerTimeout,
 	}
 
 	mux := http.NewServeMux()
@@ -100,7 +135,7 @@ func (a *app) extractHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), a.handlerTimeout)
 	defer cancel()
 
 	currentStatus, err := a.getCurrentStatus(ctx, msg.JobID)
@@ -116,6 +151,63 @@ func (a *app) extractHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	gcsURI := fmt.Sprintf("gs://%s/%s", msg.Source.Bucket, msg.Source.Object)
+	if msg.Source.Generation != "" {
+		gcsURI = gcsURI + "#" + msg.Source.Generation
+	}
+
+	dresp, err := a.docai.ProcessDocument(ctx, &documentaipb.ProcessRequest{
+		Name: a.processorName,
+		Source: &documentaipb.ProcessRequest_GcsDocument{
+			GcsDocument: &documentaipb.GcsDocument{
+				MimeType: "application/pdf",
+				GcsUri:   gcsURI,
+			},
+		},
+		SkipHumanReview: true,
+	})
+	if err != nil {
+		slog.Error("documentai process failed", "jobId", msg.JobID, "error", err.Error())
+		http.Error(w, "document processing failed", http.StatusBadGateway)
+		return
+	}
+
+	doc := dresp.GetDocument()
+	if doc == nil {
+		slog.Error("documentai empty document", "jobId", msg.JobID)
+		http.Error(w, "empty document result", http.StatusBadGateway)
+		return
+	}
+
+	text := doc.GetText()
+	if text == "" {
+		slog.Error("documentai empty text", "jobId", msg.JobID)
+		http.Error(w, "no extractable text", http.StatusBadGateway)
+		return
+	}
+
+	outObject := fmt.Sprintf("extracted/%s/extracted.json", msg.JobID)
+	payload, err := json.Marshal(map[string]string{"text": text})
+	if err != nil {
+		slog.Error("marshal extracted json", "jobId", msg.JobID, "error", err.Error())
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	wr := a.storage.Bucket(a.processedBucket).Object(outObject).NewWriter(ctx)
+	wr.ContentType = "application/json"
+	if _, err := wr.Write(payload); err != nil {
+		_ = wr.Close()
+		slog.Error("write extracted object", "jobId", msg.JobID, "error", err.Error())
+		http.Error(w, "write extract failed", http.StatusBadGateway)
+		return
+	}
+	if err := wr.Close(); err != nil {
+		slog.Error("close extracted writer", "jobId", msg.JobID, "error", err.Error())
+		http.Error(w, "write extract failed", http.StatusBadGateway)
+		return
+	}
+
 	extractedTextRef := "gs://" + a.processedBucket + "/extracted/" + msg.JobID + "/"
 	update := map[string]any{
 		"status":           contracts.StatusDocAIDone,
@@ -123,6 +215,7 @@ func (a *app) extractHandler(w http.ResponseWriter, r *http.Request) {
 		"docaiCompletedAt": time.Now().UTC().Format(time.RFC3339Nano),
 		"docaiResult": map[string]any{
 			"extractedTextRef": extractedTextRef,
+			"extractedObject":  outObject,
 		},
 	}
 	if _, err := a.firestore.Collection("contractJobs").Doc(msg.JobID).Set(ctx, update, firestore.MergeAll); err != nil {

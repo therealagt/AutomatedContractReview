@@ -32,3 +32,5 @@ Shared payload/status contract for all pipeline stages.
 - `redacted -> analyzed`
 - `analyzed -> finalized`
 - `* -> failed`
+
+The finalize Cloud Run service also accepts `redacted` when the workflow used the Gemini **batch** path: the workflow polls Vertex until output exists, then finalize copies the source PDF and sets `finalized` without a separate `analyzed` Firestore write from the Gemini service.

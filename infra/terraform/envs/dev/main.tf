@@ -300,6 +300,7 @@ module "workflows" {
 
   user_env_vars = {
     GOOGLE_CLOUD_PROJECT_ID     = var.project_id
+    VERTEX_REGION               = var.region
     DOCAI_SERVICE_URL           = module.docai_service.service_url
     DLP_SERVICE_URL             = module.dlp_service.service_url
     GEMINI_SERVICE_URL          = module.gemini_service.service_url
