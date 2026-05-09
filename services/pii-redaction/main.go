@@ -231,6 +231,17 @@ func parseGCSURI(uri string) (bucket, prefix string, err error) {
 }
 
 func readFirstObjectBytes(ctx context.Context, client *storage.Client, bucket, prefix string) ([]byte, string, error) {
+	if prefix != "" && !strings.HasSuffix(prefix, "/") {
+		r, err := client.Bucket(bucket).Object(prefix).NewReader(ctx)
+		if err == nil {
+			defer r.Close()
+			data, err := io.ReadAll(r)
+			return data, prefix, err
+		}
+		if !errors.Is(err, storage.ErrObjectNotExist) {
+			return nil, "", err
+		}
+	}
 	p := prefix
 	if p != "" && !strings.HasSuffix(p, "/") {
 		p += "/"

@@ -1,5 +1,5 @@
-# Contract pipeline: DocAI batch (LRO) -> DLP -> Gemini (sync or batch) -> finalize.
-# Service URLs and processor name come from user_env_vars set on the workflow.
+# Contract pipeline: DocAI -> DLP -> Gemini (sync or batch) -> finalize.
+# Service URLs come from user_env_vars on the workflow execution.
 main:
   params: [event]
   steps:
@@ -12,6 +12,7 @@ main:
     - init:
         assign:
           - projectId: ${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
+          - vertexRegion: ${sys.get_env("VERTEX_REGION")}
           - docaiUrl: ${sys.get_env("DOCAI_SERVICE_URL")}
           - dlpUrl: ${sys.get_env("DLP_SERVICE_URL")}
           - geminiUrl: ${sys.get_env("GEMINI_SERVICE_URL")}
@@ -66,9 +67,10 @@ main:
             mode: "batch"
         result: geminiBatchStart
     - geminiBatchPoll:
-        call: vertexBatchAwait
+        call: batchPredictionAwait
         args:
-          operationName: ${geminiBatchStart.body.operationName}
+          batchJobName: ${geminiBatchStart.body.batchJobName}
+          region: ${vertexRegion}
         result: geminiResult
     - finalizeFile:
         call: http.post
@@ -89,18 +91,25 @@ main:
           jobId: ${jobId}
           outputUri: ${finalizeResult.body.outputUri}
 
-vertexBatchAwait:
-  params: [operationName]
+batchPredictionAwait:
+  params: [batchJobName, region]
   steps:
     - poll:
-        call: googleapis.aiplatform.v1.projects.locations.operations.get
+        call: googleapis.aiplatform.v1.projects.locations.batchPredictionJobs.get
         args:
-          name: ${operationName}
-        result: op
+          name: ${batchJobName}
+          region: ${region}
+        result: job
     - check:
         switch:
-          - condition: ${default(map.get(op, "done"), false)}
+          - condition: ${job.state == "JOB_STATE_SUCCEEDED"}
             next: extractRef
+          - condition: ${job.state == "JOB_STATE_FAILED"}
+            raise:
+              message: "Gemini batch prediction failed"
+          - condition: ${job.state == "JOB_STATE_CANCELLED"}
+            raise:
+              message: "Gemini batch prediction cancelled"
         next: wait
     - wait:
         call: sys.sleep
@@ -110,4 +119,4 @@ vertexBatchAwait:
     - extractRef:
         return:
           body:
-            resultRef: ${op.response.outputInfo.gcsOutputDirectory}
+            resultRef: ${job.outputInfo.gcsOutputDirectory}
