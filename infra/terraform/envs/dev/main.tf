@@ -131,6 +131,7 @@ module "iam" {
     ]
     dlp_service = [
       "roles/dlp.user",
+      "roles/storage.objectAdmin",
       "roles/datastore.user",
     ]
     gemini_service = [
@@ -240,6 +241,7 @@ module "dlp_service" {
   service_name          = "${local.prefix}-pii-redaction"
   image                 = local.images.pii_redaction
   service_account_email = module.iam.service_account_emails["dlp_service"]
+  timeout_seconds       = var.docai_timeout_seconds
   env_vars = {
     PROJECT_ID          = var.project_id
     DLP_INSPECT_TMPL    = module.dlp.inspect_template_id

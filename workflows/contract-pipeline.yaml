@@ -33,7 +33,7 @@ main:
             type: OIDC
           body:
             jobId: ${jobId}
-            extractedTextRef: ${docAiResult.extractedTextRef}
+            extractedTextRef: ${docAiResult.body.extractedTextRef}
         result: redactionResult
     - decideGeminiPath:
         switch:

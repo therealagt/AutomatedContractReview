@@ -19,7 +19,7 @@ raw GCS finalize -> ingest_fn (Cloud Function gen2)
                   -> dispatcher Cloud Run (max=5, concurrency=1)
                   -> Cloud Workflows execution
                        docai service (/extract -> docai_done + extractedTextRef)
-                       DLP de-identify
+                        pii-redaction (DLP de-identify -> redacted + redactedTextRef)
                        Gemini sync OR Vertex Batch Prediction (LRO + poll)
                        finalize (move to processed bucket)
 ```
