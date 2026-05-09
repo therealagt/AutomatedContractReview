@@ -1,7 +1,0 @@
-# Default owner for all directories not owned by others
-* @googleapis/cloud-sdk-go-eng
-
-# Also give @yoshi-approver owners for all generated files.
-*.json @yoshi-approver @googleapis/cloud-sdk-go-eng
-*-gen.go @yoshi-approver @googleapis/cloud-sdk-go-eng
-

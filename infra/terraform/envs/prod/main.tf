@@ -89,6 +89,7 @@ module "iam" {
     ]
     dlp_service = [
       "roles/dlp.user",
+      "roles/storage.objectAdmin",
       "roles/datastore.user"
     ]
     gemini_service = [
@@ -140,6 +141,7 @@ module "dlp_service" {
   service_account_email = module.iam.service_account_emails["dlp_service"]
   min_instances         = 1
   max_instances         = 20
+  timeout_seconds       = 1800
   env_vars = {
     PROJECT_ID          = var.project_id
     DLP_INSPECT_TMPL    = var.dlp_template_ids.inspect

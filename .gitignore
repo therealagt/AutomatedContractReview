@@ -42,3 +42,31 @@ terraform.rc
 # Optional: ignore plan files saved before destroying Terraform configuration
 # Uncomment the line below if you want to ignore planout files.
 # planout
+
+# ------------------------------------------------------------------------------
+# Go (see https://github.com/github/gitignore/blob/main/Go.gitignore)
+# ------------------------------------------------------------------------------
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+*.test
+
+*.out
+*.cover
+*.coverprofile
+coverage.html
+coverage.xml
+
+__debug_bin
+__debug_bin*
+
+.gomodcache/
+.gomodcache-work/
+.gocache/
+.gocache-work/
+
+# Uncomment if dependencies are not vendored in git
+# vendor/
