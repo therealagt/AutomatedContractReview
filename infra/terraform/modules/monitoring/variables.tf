@@ -15,7 +15,7 @@ variable "workflow_id" {
 variable "pubsub_subscription_id" {
   type        = string
   default     = ""
-  description = "Full subscription resource id (projects/.../subscriptions/...). Empty skips DLQ alert."
+  description = "Subscription short id for Monitoring (resource.labels.subscription_id), not the full projects/.../subscriptions/... path. Empty skips DLQ alert and backlog chart."
 }
 
 variable "notification_channel_ids" {

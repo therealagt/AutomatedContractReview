@@ -216,7 +216,7 @@ module "monitoring" {
   project_id               = var.project_id
   environment              = var.environment
   workflow_id              = module.workflows.workflow_id
-  pubsub_subscription_id   = module.pubsub.subscription_id
+  pubsub_subscription_id   = "${local.prefix}-jobs-sub"
   notification_channel_ids = var.monitoring_notification_channel_ids
   alert_email_addresses    = var.monitoring_alert_emails
 

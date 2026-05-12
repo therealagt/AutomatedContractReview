@@ -163,10 +163,9 @@ module "artifact_registry" {
   region     = var.region
   repo_id    = var.artifact_registry_repo_id
 
-  reader_members = [
-    for sa_key, email in module.iam.service_account_emails :
-    "serviceAccount:${email}"
-  ]
+  reader_members = {
+    for k in keys(local.service_accounts) : k => "serviceAccount:${k}@${var.project_id}.iam.gserviceaccount.com"
+  }
 
   writer_members = var.ci_writer_members
 }
@@ -334,7 +333,7 @@ module "monitoring" {
   project_id               = var.project_id
   environment              = var.environment
   workflow_id              = module.workflows.workflow_id
-  pubsub_subscription_id   = module.pubsub.subscription_id
+  pubsub_subscription_id   = "${local.prefix}-jobs-sub"
   notification_channel_ids = var.monitoring_notification_channel_ids
   alert_email_addresses    = var.monitoring_alert_emails
 
