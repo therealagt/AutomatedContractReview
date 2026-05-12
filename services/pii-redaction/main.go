@@ -93,7 +93,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + port,
-		Handler:           mux,
+		Handler:           contracts.TraceLoggingMiddleware(projectID)(mux),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -132,15 +132,17 @@ func (a *app) redactHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Minute)
 	defer cancel()
 
+	log := contracts.RequestLogger(ctx)
+
 	currentStatus, err := a.getCurrentStatus(ctx, req.JobID)
 	if err != nil {
-		slog.Error("read current status failed", "jobId", req.JobID, "error", err.Error())
+		log.Error("read current status failed", "jobId", req.JobID, "error", err.Error())
 		http.Error(w, "status read failed", http.StatusServiceUnavailable)
 		return
 	}
 
 	if err := contracts.CanTransition(currentStatus, contracts.StatusRedacted); err != nil {
-		slog.Warn("invalid status transition", "jobId", req.JobID, "from", currentStatus, "to", contracts.StatusRedacted, "error", err.Error())
+		log.Warn("invalid status transition", "jobId", req.JobID, "from", currentStatus, "to", contracts.StatusRedacted, "error", err.Error())
 		http.Error(w, "invalid status transition", http.StatusConflict)
 		return
 	}
@@ -153,7 +155,7 @@ func (a *app) redactHandler(w http.ResponseWriter, r *http.Request) {
 
 	raw, objectName, err := readFirstObjectBytes(ctx, a.storage, bucket, prefix)
 	if err != nil {
-		slog.Error("read extracted object failed", "jobId", req.JobID, "error", err.Error())
+		log.Error("read extracted object failed", "jobId", req.JobID, "error", err.Error())
 		http.Error(w, "read extracted content failed", http.StatusBadGateway)
 		return
 	}
@@ -171,14 +173,14 @@ func (a *app) redactHandler(w http.ResponseWriter, r *http.Request) {
 
 	dlpResp, err := a.dlp.DeidentifyContent(ctx, dlpReq)
 	if err != nil {
-		slog.Error("dlp deidentify failed", "jobId", req.JobID, "error", err.Error())
+		log.Error("dlp deidentify failed", "jobId", req.JobID, "error", err.Error())
 		http.Error(w, "dlp deidentify failed", http.StatusBadGateway)
 		return
 	}
 
 	item := dlpResp.GetItem()
 	if item == nil {
-		slog.Error("dlp empty item", "jobId", req.JobID)
+		log.Error("dlp empty item", "jobId", req.JobID)
 		http.Error(w, "dlp empty response", http.StatusBadGateway)
 		return
 	}
@@ -186,7 +188,7 @@ func (a *app) redactHandler(w http.ResponseWriter, r *http.Request) {
 	outObject := fmt.Sprintf("redacted/%s/redacted.txt", req.JobID)
 	redactedRef := fmt.Sprintf("gs://%s/%s", bucket, outObject)
 	if err := writeObject(ctx, a.storage, bucket, outObject, []byte(redacted)); err != nil {
-		slog.Error("write redacted object failed", "jobId", req.JobID, "error", err.Error())
+		log.Error("write redacted object failed", "jobId", req.JobID, "error", err.Error())
 		http.Error(w, "write redacted output failed", http.StatusBadGateway)
 		return
 	}
@@ -203,12 +205,12 @@ func (a *app) redactHandler(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	if _, err := a.firestore.Collection("contractJobs").Doc(req.JobID).Set(ctx, update, firestore.MergeAll); err != nil {
-		slog.Error("status update failed", "jobId", req.JobID, "error", err.Error())
+		log.Error("status update failed", "jobId", req.JobID, "error", err.Error())
 		http.Error(w, "status update failed", http.StatusServiceUnavailable)
 		return
 	}
 
-	slog.Info("redaction completed", "jobId", req.JobID, "redactedTextRef", redactedRef, "redactedTextLength", len([]rune(redacted)))
+	log.Info("redaction completed", "jobId", req.JobID, "redactedTextRef", redactedRef, "redactedTextLength", len([]rune(redacted)))
 	writeJSON(w, http.StatusOK, map[string]any{
 		"jobId":              req.JobID,
 		"status":             contracts.StatusRedacted,

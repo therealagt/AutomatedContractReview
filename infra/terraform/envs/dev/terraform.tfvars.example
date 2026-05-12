@@ -24,3 +24,6 @@ dispatcher_max_instances    = 5
 gemini_batch_char_threshold = 200000
 
 # monitoring_notification_channel_ids = ["projects/your-dev-project-id/notificationChannels/CHANNEL_ID"]
+# monitoring_alert_emails = ["ops@example.com"]
+# monitoring_enable_log_export = true
+# monitoring_log_export_bucket_name = "your-dev-project-id-acr-dev-logs-archive"

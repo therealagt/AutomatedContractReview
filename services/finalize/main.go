@@ -77,7 +77,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + port,
-		Handler:           mux,
+		Handler:           contracts.TraceLoggingMiddleware(projectID)(mux),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -115,14 +115,16 @@ func (a *app) finalizeHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Minute)
 	defer cancel()
 
+	log := contracts.RequestLogger(ctx)
+
 	current, err := a.getCurrentStatus(ctx, req.JobID)
 	if err != nil {
-		slog.Error("read status", "jobId", req.JobID, "error", err.Error())
+		log.Error("read status", "jobId", req.JobID, "error", err.Error())
 		http.Error(w, "status read failed", http.StatusServiceUnavailable)
 		return
 	}
 	if current != contracts.StatusAnalyzed && current != contracts.StatusRedacted {
-		slog.Warn("unexpected status for finalize", "jobId", req.JobID, "status", current)
+		log.Warn("unexpected status for finalize", "jobId", req.JobID, "status", current)
 		http.Error(w, "invalid status transition", http.StatusConflict)
 		return
 	}
@@ -142,7 +144,7 @@ func (a *app) finalizeHandler(w http.ResponseWriter, r *http.Request) {
 
 	dst := a.storage.Bucket(a.bucket).Object(destKey)
 	if _, err := dst.CopierFrom(src).Run(ctx); err != nil {
-		slog.Error("copy source pdf", "jobId", req.JobID, "error", err.Error())
+		log.Error("copy source pdf", "jobId", req.JobID, "error", err.Error())
 		http.Error(w, "copy failed", http.StatusBadGateway)
 		return
 	}
@@ -160,12 +162,12 @@ func (a *app) finalizeHandler(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	if _, err := a.firestore.Collection("contractJobs").Doc(req.JobID).Set(ctx, update, firestore.MergeAll); err != nil {
-		slog.Error("firestore finalize", "jobId", req.JobID, "error", err.Error())
+		log.Error("firestore finalize", "jobId", req.JobID, "error", err.Error())
 		http.Error(w, "status update failed", http.StatusServiceUnavailable)
 		return
 	}
 
-	slog.Info("finalized", "jobId", req.JobID, "outputUri", outputURI)
+	log.Info("finalized", "jobId", req.JobID, "outputUri", outputURI)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"jobId":     req.JobID,
 		"status":    contracts.StatusFinalized,

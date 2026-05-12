@@ -62,7 +62,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + port,
-		Handler:           mux,
+		Handler:           contracts.TraceLoggingMiddleware(projectID)(mux),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -116,6 +116,8 @@ func dispatchHandler(client *executions.Client, workflowID string) http.HandlerF
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
 
+		log := contracts.RequestLogger(ctx)
+
 		resp, err := client.CreateExecution(ctx, &executionspb.CreateExecutionRequest{
 			Parent: workflowID,
 			Execution: &executionspb.Execution{
@@ -125,18 +127,18 @@ func dispatchHandler(client *executions.Client, workflowID string) http.HandlerF
 		if err != nil {
 			st, ok := status.FromError(err)
 			if ok && st.Code() == codes.ResourceExhausted {
-				slog.Warn("workflows quota hit, client should retry", "jobId", msg.JobID, "error", err.Error())
+				log.Warn("workflows quota hit, client should retry", "jobId", msg.JobID, "error", err.Error())
 				http.Error(w, "workflows quota", http.StatusTooManyRequests)
 				return
 			}
 
-			slog.Error("workflow start failed", "jobId", msg.JobID, "error", err.Error())
+			log.Error("workflow start failed", "jobId", msg.JobID, "error", err.Error())
 			http.Error(w, "workflow start failed", http.StatusServiceUnavailable)
 			return
 		}
 
 		execName := resp.GetName()
-		slog.Info("workflow execution started", "jobId", msg.JobID, "executionName", execName)
+		log.Info("workflow execution started", "jobId", msg.JobID, "executionName", execName)
 		writeJSON(w, http.StatusAccepted, map[string]string{
 			"jobId":         msg.JobID,
 			"executionName": execName,

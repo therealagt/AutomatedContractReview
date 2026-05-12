@@ -16,3 +16,7 @@ service_images = {
   gemini_analysis = "europe-west1-docker.pkg.dev/PROJECT/repo/gemini-analysis:latest"
   finalize        = "europe-west1-docker.pkg.dev/PROJECT/repo/finalize:latest"
 }
+
+# monitoring_alert_emails = ["ops@example.com"]
+# monitoring_enable_log_export = true
+# monitoring_log_export_bucket_name = "your-prod-project-id-acr-prod-logs-archive"

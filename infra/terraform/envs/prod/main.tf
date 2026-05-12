@@ -207,3 +207,38 @@ module "workflows" {
     GEMINI_BATCH_CHAR_THRESHOLD = "200000"
   }
 }
+
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  depends_on = [module.apis, module.workflows, module.pubsub]
+
+  project_id               = var.project_id
+  environment              = var.environment
+  workflow_id              = module.workflows.workflow_id
+  pubsub_subscription_id   = module.pubsub.subscription_id
+  notification_channel_ids = var.monitoring_notification_channel_ids
+  alert_email_addresses    = var.monitoring_alert_emails
+
+  enable_workflow_failure_alert = var.monitoring_enable_workflow_alert
+  enable_pubsub_dlq_alert       = var.monitoring_enable_pubsub_dlq_alert
+  enable_cloud_run_alerts       = var.monitoring_enable_cloud_run_alerts
+  enable_dashboard              = var.monitoring_enable_dashboard
+
+  cloud_run_service_names = compact([
+    module.docai_service.service_name,
+    module.dlp_service.service_name,
+    module.gemini_service.service_name,
+    module.finalize_service.service_name,
+  ])
+
+  cloud_run_5xx_threshold_per_series   = var.monitoring_cloud_run_5xx_threshold
+  cloud_run_latency_threshold_seconds  = var.monitoring_cloud_run_latency_seconds
+  cloud_run_dispatcher_latency_seconds = var.monitoring_cloud_run_dispatcher_latency_seconds
+
+  enable_log_export          = var.monitoring_enable_log_export
+  log_export_bucket_name     = var.monitoring_log_export_bucket_name
+  log_export_filter          = var.monitoring_log_export_filter
+  log_export_retention_days  = var.monitoring_log_export_retention_days
+  log_export_bucket_location = var.monitoring_log_export_bucket_location
+}

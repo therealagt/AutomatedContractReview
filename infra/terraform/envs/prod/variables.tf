@@ -58,3 +58,75 @@ variable "service_images" {
     finalize        = string
   })
 }
+
+variable "monitoring_notification_channel_ids" {
+  type        = list(string)
+  default     = []
+  description = "Optional Cloud Monitoring notification channel ids for alert policies."
+}
+
+variable "monitoring_alert_emails" {
+  type        = list(string)
+  default     = []
+  description = "Email addresses for Terraform-managed Monitoring notification channels."
+}
+
+variable "monitoring_enable_log_export" {
+  type    = bool
+  default = false
+}
+
+variable "monitoring_log_export_bucket_name" {
+  type    = string
+  default = ""
+}
+
+variable "monitoring_log_export_filter" {
+  type    = string
+  default = "severity>=DEFAULT"
+}
+
+variable "monitoring_log_export_retention_days" {
+  type    = number
+  default = 365
+}
+
+variable "monitoring_log_export_bucket_location" {
+  type    = string
+  default = ""
+}
+
+variable "monitoring_cloud_run_5xx_threshold" {
+  type    = number
+  default = 5
+}
+
+variable "monitoring_cloud_run_latency_seconds" {
+  type    = number
+  default = 3600
+}
+
+variable "monitoring_cloud_run_dispatcher_latency_seconds" {
+  type    = number
+  default = 45
+}
+
+variable "monitoring_enable_dashboard" {
+  type    = bool
+  default = true
+}
+
+variable "monitoring_enable_pubsub_dlq_alert" {
+  type    = bool
+  default = true
+}
+
+variable "monitoring_enable_workflow_alert" {
+  type    = bool
+  default = true
+}
+
+variable "monitoring_enable_cloud_run_alerts" {
+  type    = bool
+  default = true
+}

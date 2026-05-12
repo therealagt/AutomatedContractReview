@@ -117,7 +117,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + port,
-		Handler:           mux,
+		Handler:           contracts.TraceLoggingMiddleware(projectID)(mux),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -161,21 +161,23 @@ func (a *app) analyzeHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), a.timeout)
 	defer cancel()
 
+	log := contracts.RequestLogger(ctx)
+
 	current, err := a.getCurrentStatus(ctx, req.JobID)
 	if err != nil {
-		slog.Error("read status", "jobId", req.JobID, "error", err.Error())
+		log.Error("read status", "jobId", req.JobID, "error", err.Error())
 		http.Error(w, "status read failed", http.StatusServiceUnavailable)
 		return
 	}
 	if err := contracts.CanTransition(current, contracts.StatusAnalyzed); err != nil {
-		slog.Warn("invalid transition", "jobId", req.JobID, "from", current, "to", contracts.StatusAnalyzed)
+		log.Warn("invalid transition", "jobId", req.JobID, "from", current, "to", contracts.StatusAnalyzed)
 		http.Error(w, "invalid status transition", http.StatusConflict)
 		return
 	}
 
 	rawRedacted, err := readGSFile(ctx, a.storage, req.RedactedTextRef)
 	if err != nil {
-		slog.Error("read redacted text", "jobId", req.JobID, "error", err.Error())
+		log.Error("read redacted text", "jobId", req.JobID, "error", err.Error())
 		http.Error(w, "read redacted text failed", http.StatusBadGateway)
 		return
 	}
@@ -184,7 +186,7 @@ func (a *app) analyzeHandler(w http.ResponseWriter, r *http.Request) {
 	if mode == "batch" {
 		jobName, err := a.startBatchJob(ctx, req.JobID, redacted)
 		if err != nil {
-			slog.Error("batch job", "jobId", req.JobID, "error", err.Error())
+			log.Error("batch job", "jobId", req.JobID, "error", err.Error())
 			http.Error(w, "batch job failed", http.StatusBadGateway)
 			return
 		}
@@ -198,21 +200,21 @@ func (a *app) analyzeHandler(w http.ResponseWriter, r *http.Request) {
 
 	out, err := a.callGenerateContent(ctx, redacted)
 	if err != nil {
-		slog.Error("generate content", "jobId", req.JobID, "error", err.Error())
+		log.Error("generate content", "jobId", req.JobID, "error", err.Error())
 		http.Error(w, "vertex generate failed", http.StatusBadGateway)
 		return
 	}
 
 	outObject := fmt.Sprintf("analysis/%s/result.json", req.JobID)
 	if err := writeGCS(ctx, a.storage, a.bucket, outObject, out); err != nil {
-		slog.Error("write analysis", "jobId", req.JobID, "error", err.Error())
+		log.Error("write analysis", "jobId", req.JobID, "error", err.Error())
 		http.Error(w, "write analysis failed", http.StatusBadGateway)
 		return
 	}
 
 	resultRef := fmt.Sprintf("gs://%s/analysis/%s/", a.bucket, req.JobID)
 	if err := a.mergeAnalyzed(ctx, req.JobID, resultRef); err != nil {
-		slog.Error("firestore analyzed", "jobId", req.JobID, "error", err.Error())
+		log.Error("firestore analyzed", "jobId", req.JobID, "error", err.Error())
 		http.Error(w, "status update failed", http.StatusServiceUnavailable)
 		return
 	}

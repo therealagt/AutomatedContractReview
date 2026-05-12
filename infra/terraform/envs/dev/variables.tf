@@ -87,6 +87,81 @@ variable "monitoring_notification_channel_ids" {
   description = "Optional Cloud Monitoring notification channel ids for alert policies."
 }
 
+variable "monitoring_alert_emails" {
+  type        = list(string)
+  default     = []
+  description = "Email addresses for Terraform-managed Monitoring notification channels."
+}
+
+variable "monitoring_enable_log_export" {
+  type        = bool
+  default     = false
+  description = "When true, creates a GCS log sink bucket (set monitoring_log_export_bucket_name)."
+}
+
+variable "monitoring_log_export_bucket_name" {
+  type        = string
+  default     = ""
+  description = "Globally unique bucket name for regulated log export."
+}
+
+variable "monitoring_log_export_filter" {
+  type        = string
+  default     = "severity>=DEFAULT"
+  description = "Log Router filter for the regulated export sink."
+}
+
+variable "monitoring_log_export_retention_days" {
+  type        = number
+  default     = 365
+  description = "Object lifecycle age (days) for exported log objects."
+}
+
+variable "monitoring_log_export_bucket_location" {
+  type        = string
+  default     = ""
+  description = "GCS location for log export bucket; empty uses EU multi-region."
+}
+
+variable "monitoring_cloud_run_5xx_threshold" {
+  type        = number
+  default     = 5
+  description = "Cloud Run 5xx count per 300s (per alert series) before firing."
+}
+
+variable "monitoring_cloud_run_latency_seconds" {
+  type        = number
+  default     = 3600
+  description = "P95 latency threshold (seconds) for pipeline Cloud Run services."
+}
+
+variable "monitoring_cloud_run_dispatcher_latency_seconds" {
+  type        = number
+  default     = 45
+  description = "P95 latency threshold (seconds) for dispatcher Cloud Run service."
+}
+
+variable "monitoring_enable_dashboard" {
+  type        = bool
+  default     = true
+  description = "Create the consolidated Monitoring dashboard."
+}
+
+variable "monitoring_enable_pubsub_dlq_alert" {
+  type    = bool
+  default = true
+}
+
+variable "monitoring_enable_workflow_alert" {
+  type    = bool
+  default = true
+}
+
+variable "monitoring_enable_cloud_run_alerts" {
+  type    = bool
+  default = true
+}
+
 variable "dispatcher_max_instances" {
   type        = number
   default     = 5

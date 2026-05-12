@@ -100,7 +100,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + port,
-		Handler:           mux,
+		Handler:           contracts.TraceLoggingMiddleware(projectID)(mux),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -135,18 +135,20 @@ func (a *app) extractHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := contracts.RequestLogger(r.Context())
+
 	ctx, cancel := context.WithTimeout(r.Context(), a.handlerTimeout)
 	defer cancel()
 
 	currentStatus, err := a.getCurrentStatus(ctx, msg.JobID)
 	if err != nil {
-		slog.Error("read current status failed", "jobId", msg.JobID, "error", err.Error())
+		log.Error("read current status failed", "jobId", msg.JobID, "error", err.Error())
 		http.Error(w, "status read failed", http.StatusServiceUnavailable)
 		return
 	}
 
 	if err := contracts.CanTransition(currentStatus, contracts.StatusDocAIDone); err != nil {
-		slog.Warn("invalid status transition", "jobId", msg.JobID, "from", currentStatus, "to", contracts.StatusDocAIDone, "error", err.Error())
+		log.Warn("invalid status transition", "jobId", msg.JobID, "from", currentStatus, "to", contracts.StatusDocAIDone, "error", err.Error())
 		http.Error(w, "invalid status transition", http.StatusConflict)
 		return
 	}
@@ -167,21 +169,21 @@ func (a *app) extractHandler(w http.ResponseWriter, r *http.Request) {
 		SkipHumanReview: true,
 	})
 	if err != nil {
-		slog.Error("documentai process failed", "jobId", msg.JobID, "error", err.Error())
+		log.Error("documentai process failed", "jobId", msg.JobID, "error", err.Error())
 		http.Error(w, "document processing failed", http.StatusBadGateway)
 		return
 	}
 
 	doc := dresp.GetDocument()
 	if doc == nil {
-		slog.Error("documentai empty document", "jobId", msg.JobID)
+		log.Error("documentai empty document", "jobId", msg.JobID)
 		http.Error(w, "empty document result", http.StatusBadGateway)
 		return
 	}
 
 	text := doc.GetText()
 	if text == "" {
-		slog.Error("documentai empty text", "jobId", msg.JobID)
+		log.Error("documentai empty text", "jobId", msg.JobID)
 		http.Error(w, "no extractable text", http.StatusBadGateway)
 		return
 	}
@@ -189,7 +191,7 @@ func (a *app) extractHandler(w http.ResponseWriter, r *http.Request) {
 	outObject := fmt.Sprintf("extracted/%s/extracted.json", msg.JobID)
 	payload, err := json.Marshal(map[string]string{"text": text})
 	if err != nil {
-		slog.Error("marshal extracted json", "jobId", msg.JobID, "error", err.Error())
+		log.Error("marshal extracted json", "jobId", msg.JobID, "error", err.Error())
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -198,12 +200,12 @@ func (a *app) extractHandler(w http.ResponseWriter, r *http.Request) {
 	wr.ContentType = "application/json"
 	if _, err := wr.Write(payload); err != nil {
 		_ = wr.Close()
-		slog.Error("write extracted object", "jobId", msg.JobID, "error", err.Error())
+		log.Error("write extracted object", "jobId", msg.JobID, "error", err.Error())
 		http.Error(w, "write extract failed", http.StatusBadGateway)
 		return
 	}
 	if err := wr.Close(); err != nil {
-		slog.Error("close extracted writer", "jobId", msg.JobID, "error", err.Error())
+		log.Error("close extracted writer", "jobId", msg.JobID, "error", err.Error())
 		http.Error(w, "write extract failed", http.StatusBadGateway)
 		return
 	}
@@ -219,12 +221,12 @@ func (a *app) extractHandler(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	if _, err := a.firestore.Collection("contractJobs").Doc(msg.JobID).Set(ctx, update, firestore.MergeAll); err != nil {
-		slog.Error("status update failed", "jobId", msg.JobID, "error", err.Error())
+		log.Error("status update failed", "jobId", msg.JobID, "error", err.Error())
 		http.Error(w, "status update failed", http.StatusServiceUnavailable)
 		return
 	}
 
-	slog.Info("docai stage completed", "jobId", msg.JobID, "status", contracts.StatusDocAIDone, "extractedTextRef", extractedTextRef)
+	log.Info("docai stage completed", "jobId", msg.JobID, "status", contracts.StatusDocAIDone, "extractedTextRef", extractedTextRef)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"jobId":            msg.JobID,
 		"status":           contracts.StatusDocAIDone,
