@@ -40,13 +40,13 @@ locals {
   prefix = "acr-${var.environment}"
 
   service_accounts = {
-    ingest_fn        = "Ingest function runtime SA"
-    dispatcher       = "Dispatcher Cloud Run runtime SA"
-    docai_service    = "Document AI service runtime SA"
-    dlp_service      = "PII redaction service runtime SA"
-    gemini_service   = "Gemini analysis service runtime SA"
-    finalize_service = "Finalize service runtime SA"
-    workflow_sa      = "Workflow runtime SA"
+    "ingest-fn"        = "Ingest function runtime SA"
+    dispatcher         = "Dispatcher Cloud Run runtime SA"
+    "docai-service"    = "Document AI service runtime SA"
+    "dlp-service"      = "PII redaction service runtime SA"
+    "gemini-service"   = "Gemini analysis service runtime SA"
+    "finalize-service" = "Finalize service runtime SA"
+    "workflow-sa"      = "Workflow runtime SA"
   }
 
   service_image_names = [
@@ -112,7 +112,7 @@ module "iam" {
   project_id       = var.project_id
   service_accounts = local.service_accounts
   role_bindings = {
-    ingest_fn = [
+    "ingest-fn" = [
       "roles/pubsub.publisher",
       "roles/datastore.user",
       "roles/eventarc.eventReceiver",
@@ -124,26 +124,26 @@ module "iam" {
       "roles/eventarc.eventReceiver",
       "roles/run.invoker",
     ]
-    docai_service = [
+    "docai-service" = [
       "roles/documentai.apiUser",
       "roles/storage.objectAdmin",
       "roles/datastore.user",
     ]
-    dlp_service = [
+    "dlp-service" = [
       "roles/dlp.user",
       "roles/storage.objectAdmin",
       "roles/datastore.user",
     ]
-    gemini_service = [
+    "gemini-service" = [
       "roles/aiplatform.user",
       "roles/storage.objectAdmin",
       "roles/datastore.user",
     ]
-    finalize_service = [
+    "finalize-service" = [
       "roles/storage.objectAdmin",
       "roles/datastore.user",
     ]
-    workflow_sa = [
+    "workflow-sa" = [
       "roles/workflows.invoker",
       "roles/run.invoker",
       "roles/datastore.user",
@@ -199,7 +199,7 @@ module "ingest_function" {
   function_name         = "${local.prefix}-ingest"
   raw_bucket_name       = module.storage.raw_bucket_name
   jobs_topic_name       = module.pubsub.topic_name
-  service_account_email = module.iam.service_account_emails["ingest_fn"]
+  service_account_email = module.iam.service_account_emails["ingest-fn"]
   source_dir            = "${path.root}/../../../../services/ingest_fn"
   source_bucket_name    = "${local.prefix}-fn-src-${var.project_id}"
 
@@ -221,7 +221,7 @@ module "docai_service" {
   region                = var.region
   service_name          = "${local.prefix}-docai"
   image                 = local.images.docai
-  service_account_email = module.iam.service_account_emails["docai_service"]
+  service_account_email = module.iam.service_account_emails["docai-service"]
   timeout_seconds       = var.docai_timeout_seconds
   env_vars = {
     PROJECT_ID           = var.project_id
@@ -240,7 +240,7 @@ module "dlp_service" {
   region                = var.region
   service_name          = "${local.prefix}-pii-redaction"
   image                 = local.images.pii_redaction
-  service_account_email = module.iam.service_account_emails["dlp_service"]
+  service_account_email = module.iam.service_account_emails["dlp-service"]
   timeout_seconds       = var.docai_timeout_seconds
   env_vars = {
     PROJECT_ID          = var.project_id
@@ -258,7 +258,7 @@ module "gemini_service" {
   region                = var.region
   service_name          = "${local.prefix}-gemini-analysis"
   image                 = local.images.gemini_analysis
-  service_account_email = module.iam.service_account_emails["gemini_service"]
+  service_account_email = module.iam.service_account_emails["gemini-service"]
   max_instances         = var.gemini_max_instances
   container_concurrency = 1
   timeout_seconds       = var.gemini_timeout_seconds
@@ -280,7 +280,7 @@ module "finalize_service" {
   region                = var.region
   service_name          = "${local.prefix}-finalize"
   image                 = local.images.finalize
-  service_account_email = module.iam.service_account_emails["finalize_service"]
+  service_account_email = module.iam.service_account_emails["finalize-service"]
   env_vars = {
     PROJECT_ID       = var.project_id
     PROCESSED_BUCKET = module.storage.processed_bucket_name
@@ -296,7 +296,7 @@ module "workflows" {
   region                = var.region
   workflow_name         = "${local.prefix}-contract-pipeline"
   workflow_source_path  = "${path.root}/../../../../workflows/contract-pipeline.yaml"
-  service_account_email = module.iam.service_account_emails["workflow_sa"]
+  service_account_email = module.iam.service_account_emails["workflow-sa"]
 
   user_env_vars = {
     GOOGLE_CLOUD_PROJECT_ID     = var.project_id

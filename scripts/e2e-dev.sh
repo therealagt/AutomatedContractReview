@@ -20,4 +20,4 @@ echo "Waiting for ingest (finalize)…"
 sleep 15
 
 echo "Verify in console or API: Firestore collection contractJobs for a new jobId (status queued → …)."
-echo "Check Cloud Logging: ingest_fn and dispatcher JSON logs (jobId, executionName); Workflows execution state."
+echo "Check Cloud Logging: ingest-fn and dispatcher JSON logs (jobId, executionName); Workflows execution state."

@@ -25,12 +25,12 @@ module "apis" {
 locals {
   prefix = "acr-${var.environment}"
   service_accounts = {
-    ingest_fn        = "Ingest function runtime SA"
-    docai_service    = "Document AI service runtime SA"
-    dlp_service      = "PII redaction service runtime SA"
-    gemini_service   = "Gemini analysis service runtime SA"
-    finalize_service = "Finalize service runtime SA"
-    workflow_sa      = "Workflow runtime SA"
+    "ingest-fn"        = "Ingest function runtime SA"
+    "docai-service"    = "Document AI service runtime SA"
+    "dlp-service"      = "PII redaction service runtime SA"
+    "gemini-service"   = "Gemini analysis service runtime SA"
+    "finalize-service" = "Finalize service runtime SA"
+    "workflow-sa"      = "Workflow runtime SA"
   }
 }
 
@@ -78,29 +78,29 @@ module "iam" {
   project_id       = var.project_id
   service_accounts = local.service_accounts
   role_bindings = {
-    ingest_fn = [
+    "ingest-fn" = [
       "roles/pubsub.publisher",
       "roles/datastore.user"
     ]
-    docai_service = [
+    "docai-service" = [
       "roles/documentai.apiUser",
       "roles/storage.objectViewer",
       "roles/datastore.user"
     ]
-    dlp_service = [
+    "dlp-service" = [
       "roles/dlp.user",
       "roles/storage.objectAdmin",
       "roles/datastore.user"
     ]
-    gemini_service = [
+    "gemini-service" = [
       "roles/aiplatform.user",
       "roles/datastore.user"
     ]
-    finalize_service = [
+    "finalize-service" = [
       "roles/storage.objectAdmin",
       "roles/datastore.user"
     ]
-    workflow_sa = [
+    "workflow-sa" = [
       "roles/workflows.invoker",
       "roles/run.invoker",
       "roles/datastore.user",
@@ -120,7 +120,7 @@ module "docai_service" {
   region                = var.region
   service_name          = "${local.prefix}-docai"
   image                 = var.service_images.docai
-  service_account_email = module.iam.service_account_emails["docai_service"]
+  service_account_email = module.iam.service_account_emails["docai-service"]
   min_instances         = 1
   max_instances         = 20
   env_vars = {
@@ -138,7 +138,7 @@ module "dlp_service" {
   region                = var.region
   service_name          = "${local.prefix}-pii-redaction"
   image                 = var.service_images.pii_redaction
-  service_account_email = module.iam.service_account_emails["dlp_service"]
+  service_account_email = module.iam.service_account_emails["dlp-service"]
   min_instances         = 1
   max_instances         = 20
   timeout_seconds       = 1800
@@ -158,7 +158,7 @@ module "gemini_service" {
   region                = var.region
   service_name          = "${local.prefix}-gemini-analysis"
   image                 = var.service_images.gemini_analysis
-  service_account_email = module.iam.service_account_emails["gemini_service"]
+  service_account_email = module.iam.service_account_emails["gemini-service"]
   min_instances         = 1
   max_instances         = 20
   env_vars = {
@@ -176,7 +176,7 @@ module "finalize_service" {
   region                = var.region
   service_name          = "${local.prefix}-finalize"
   image                 = var.service_images.finalize
-  service_account_email = module.iam.service_account_emails["finalize_service"]
+  service_account_email = module.iam.service_account_emails["finalize-service"]
   min_instances         = 1
   max_instances         = 20
   env_vars = {
@@ -194,7 +194,7 @@ module "workflows" {
   region                = var.region
   workflow_name         = "${local.prefix}-contract-pipeline"
   workflow_source_path  = "${path.root}/../../../../workflows/contract-pipeline.yaml"
-  service_account_email = module.iam.service_account_emails["workflow_sa"]
+  service_account_email = module.iam.service_account_emails["workflow-sa"]
   user_env_vars = {
     GOOGLE_CLOUD_PROJECT_ID     = var.project_id
     VERTEX_REGION               = var.region
